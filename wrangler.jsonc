@@ -1,0 +1,52 @@
+{
+  // Cloudflare Access External Evaluation Worker with Training Certification System
+  "name": "cloudflare-access-sso-worker",
+  "workers_dev": true,
+  "compatibility_date": "2024-08-06",
+  "main": "src/index.js",
+
+  // KV Storage for RSA key pairs (automatically generated)
+  // Uses environment variable KV_NAMESPACE_ID
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "${KV_NAMESPACE_ID}"
+    }
+  ],
+
+  // D1 Database for training completion status tracking
+  // Uses environment variable D1_DATABASE_ID
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "training-completion-status-db",
+      "database_id": "${D1_DATABASE_ID}"
+    }
+  ],
+
+  // Environment Variables - Uses direnv variables
+  "vars": {
+    "TEAM_DOMAIN": "${TEAM_DOMAIN}",
+    "ADMIN_DOMAIN": "${ADMIN_DOMAIN}",
+    "DEBUG": false
+  },
+
+  // Observability - provides Worker analytics and logs
+  "observability": {
+    "enabled": true
+  },
+
+  // Smart Placement for optimal performance and reduced latency
+  "placement": {
+    "mode": "smart"
+  }
+
+  // Secrets Configuration (use wrangler secret put commands):
+  // 
+  // Required for Okta integration:
+  // wrangler secret put OKTA_DOMAIN        // e.g., "dev-12345.okta.com"
+  // wrangler secret put OKTA_API_TOKEN     // Your Okta API token
+  //
+  // Required for Cloudflare Access integration:
+  // wrangler secret put ACCESS_APP_AUD     // Access application audience ID
+}
