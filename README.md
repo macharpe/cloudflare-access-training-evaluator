@@ -347,71 +347,24 @@ wrangler d1 execute training-completion-status-db --remote \
 
 ---
 
-## 🏢 **Production Considerations**
+## 🏢 **Production Deployment**
 
-### **Security Best Practices**
-- **🔐 Strong Access Policies**: Configure appropriate Cloudflare Access rules
-- **🔒 Regular Secret Rotation**: Rotate Okta API tokens and application secrets
-- **📝 Audit Logging**: Monitor all administrative actions and access decisions
-- **🚫 Debug Mode**: Never enable debug logging in production
-- **🌍 Geographic Restrictions**: Consider geo-based access policies if needed
+### **Security Checklist**
+- [ ] Configure appropriate Cloudflare Access policies for admin interface
+- [ ] Set up regular rotation of Okta API tokens and secrets
+- [ ] Disable debug logging (`DEBUG: false` in wrangler.jsonc)
+- [ ] Review and configure geographic access restrictions if needed
 
-### **Performance & Scalability**
-- **📈 D1 Database**: Handles thousands of users with automatic scaling
-- **⚡ Sub-millisecond Response**: Global edge deployment for fast access decisions
-- **🌍 Global Distribution**: Deployed across Cloudflare's global network
-- **🔄 Efficient Caching**: Optimized database queries and response caching
+### **Monitoring & Maintenance**
+- [ ] Set up monitoring for Worker execution and D1 database performance
+- [ ] Configure log retention and audit trail storage
+- [ ] Plan for regular D1 database backups
+- [ ] Document incident response procedures for access failures
 
-### **Disaster Recovery**
-- **📊 Database Backups**: Regular D1 database snapshots
-- **🔑 Key Recovery**: RSA keys stored securely in Workers KV
-- **📋 Configuration Backup**: Infrastructure as code with wrangler.jsonc
-- **🔄 Multi-region**: Automatic failover across Cloudflare's global network
-
-### **Compliance & Auditing**
-- **📊 Complete Audit Trail**: All access decisions logged with timestamps
-- **👥 User Activity Tracking**: Monitor training status changes and admin actions
-- **🔍 Identity Logging**: Full user identity in all administrative actions
-- **📈 Compliance Reporting**: Export training completion data for compliance
-
----
-
-## 🎯 **Business Benefits**
-
-### **Enhanced Security Posture**
-- **Zero Trust Compliance**: Enforces training requirements at the access layer
-- **Risk Reduction**: Prevents untrained users from accessing sensitive systems  
-- **Incident Prevention**: Reduces security incidents through mandatory awareness training
-- **Defense in Depth**: Additional security layer beyond identity provider authentication
-
-### **Operational Efficiency**
-- **Automated Enforcement**: No manual checking of training completion required
-- **Self-Service Management**: HR/Security teams manage training status independently
-- **Identity Provider Integration**: Seamless user synchronization and management
-- **Real-time Updates**: Immediate access control based on training status changes
-
-### **Compliance & Governance**
-- **Audit Ready**: Complete audit trail of access decisions and training status
-- **Policy Enforcement**: Automated compliance with corporate training policies
-- **Real-time Reporting**: Live visibility into organization-wide training completion
-- **Identity Integration**: Leverages existing corporate identity infrastructure
-
----
-
-## 🔐 **Security Architecture**
-
-### **Authentication Flow**
-1. **Admin Access**: Cloudflare Access authenticates administrators via corporate SSO
-2. **JWT Validation**: Worker validates Access JWT tokens cryptographically
-3. **Identity Extraction**: User identity extracted from verified Access claims
-4. **Authorization**: Training status checked against database for access decisions
-
-### **Key Security Features**
-- **Zero Trust Model**: No implicit trust, every request validated
-- **Cryptographic Signatures**: All responses to Access are signed with RSA keys
-- **Identity-Based Access**: Full user identity in all access decisions
-- **Secure Key Storage**: RSA keys stored in Cloudflare Workers KV
-- **Tamper-Proof Responses**: Signed JWT responses prevent manipulation
+### **Scalability Notes**
+- D1 database handles thousands of users with automatic scaling
+- Global edge deployment provides sub-millisecond response times
+- RSA keys and configuration stored redundantly across regions
 
 ---
 
@@ -466,54 +419,6 @@ wrangler deploy
 
 ---
 
-## 📊 **Code Statistics**
-
-### **Project Metrics**
-| Metric | Count | Description |
-|--------|-------|-------------|
-| **JavaScript Files** | 12 | Core application modules |
-| **SQL Migration Files** | 2 | Database schema definitions |
-| **Source Directories** | 7 | Organized module structure |
-| **Total Lines of Code** | 1,845 | JavaScript implementation |
-| **SQL Lines** | 21 | Database migrations |
-| **Documentation Lines** | 608 | README.md + CLAUDE.md |
-| **Comment Lines** | 283 | Inline documentation and JSDoc |
-
-### **Code Structure**
-| Component | Count | Details |
-|-----------|-------|---------|
-| **Exported Functions** | 31 | Public API endpoints and utilities |
-| **Import Statements** | 13 | Clean modular dependencies |
-| **Total Functions** | 61 | Including arrow functions and methods |
-| **Async Operations** | 65 | Database queries and API calls |
-| **Console Statements** | 56 | Logging and debugging (production-optimized) |
-
-### **Architecture Overview**
-```
-src/
-├── auth/ (5 files)          → Authentication & authorization logic
-├── database/ (2 files)      → D1 database operations & migrations  
-├── handlers/ (3 files)      → HTTP request handlers
-├── integrations/ (1 file)   → External API integrations (Okta)
-├── utils/ (1 file)          → Shared utilities
-└── index.js                 → Worker entry point
-```
-
-### **Features Breakdown**
-- **🔐 Authentication Modules**: 5 specialized auth handlers
-- **🗄️ Database Operations**: Full CRUD with migration support
-- **🌐 HTTP Handlers**: 6 endpoint handlers for web + API
-- **🔄 External Integrations**: Okta API with user sync
-- **⚡ Production Ready**: Optimized logging, error handling, type safety
-
-### **Quality Metrics**
-- **📋 JSDoc Coverage**: Comprehensive function documentation
-- **🔍 Error Handling**: Try-catch blocks in all async operations  
-- **🚀 Performance**: Conditional debug logging, optimized queries
-- **🛡️ Security**: JWT validation, audience verification, secure headers
-- **🧪 Code Quality**: No circular dependencies, clean imports/exports
-
----
 
 ## 📄 **License**
 
