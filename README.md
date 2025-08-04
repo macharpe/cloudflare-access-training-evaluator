@@ -140,16 +140,16 @@ wrangler kv:namespace create "KV"
 wrangler d1 create training-completion-status-db
 ```
 
-### **Step 3: Configuration Approach**
+### **Step 3: Configuration**
 
-This project uses **direnv** for environment-based configuration, eliminating the need for multiple configuration files. The `wrangler.jsonc` file uses environment variable placeholders (`${VARIABLE_NAME}`) that are automatically populated by direnv.
+The `wrangler.jsonc` file contains all the configuration for your Worker including KV namespace, D1 database, and environment variables.
 
-**Benefits of this approach:**
-- ✅ Single configuration file (`wrangler.jsonc`)
-- ✅ No sensitive data in version control
-- ✅ Environment variables automatically loaded when entering project directory
-- ✅ Easy team collaboration via `.envrc.example` template
-- ✅ Simplified deployment with `wrangler deploy` (no flags needed)
+**When cloning this repository:**
+- ✅ Update KV namespace ID with your own (see comments in wrangler.jsonc)
+- ✅ Update D1 database ID with your own (see comments in wrangler.jsonc)  
+- ✅ Update domain variables with your own domains (see comments in wrangler.jsonc)
+- ✅ Direct resource IDs for reliable deployments and GitHub integration
+- ✅ Simplified deployment with `wrangler deploy`
 
 ### **Step 4: Security Configuration**
 
@@ -177,67 +177,16 @@ wrangler secret put OKTA_API_TOKEN   # Your Okta API token from above
 wrangler secret put ACCESS_APP_AUD   # Your Access application audience ID
 ```
 
-### **Step 5: Environment Configuration with direnv**
-
-#### **Why direnv?**
-Instead of maintaining separate configuration files, this project uses direnv to automatically load environment variables when you enter the project directory. This approach:
-- Keeps sensitive configuration out of version control
-- Eliminates the need for multiple `wrangler.jsonc` files
-- Automatically loads variables for all team members
-- Works seamlessly with Wrangler's environment variable substitution
-
-#### **Install and Setup direnv**
+### **Step 5: Deploy Worker**
 ```bash
-# Install direnv (macOS)
-brew install direnv
-
-# Install direnv (Ubuntu/Debian)
-sudo apt install direnv
-
-# Add to your shell (bash)
-echo 'eval "$(direnv hook bash)"' >> ~/.bashrc
-source ~/.bashrc
-
-# Add to your shell (zsh)
-echo 'eval "$(direnv hook zsh)"' >> ~/.zshrc
-source ~/.zshrc
-```
-
-#### **Configure Environment Variables**
-```bash
-# Copy the example environment file
-cp .envrc.example .envrc
-
-# Edit .envrc with your actual infrastructure IDs from Step 2:
-# KV_NAMESPACE_ID="your-kv-namespace-id"
-# D1_DATABASE_ID="your-database-id"
-# TEAM_DOMAIN="your-company.cloudflareaccess.com"
-# ADMIN_DOMAIN="training-status.your-company.com"
-
-# Allow direnv to load the environment
-direnv allow
-```
-
-#### **Verify Configuration**
-```bash
-# Check that variables are loaded
-echo $KV_NAMESPACE_ID
-echo $D1_DATABASE_ID
-echo $TEAM_DOMAIN
-```
-
-**Note**: The `.envrc` file is in `.gitignore` and won't be committed. Use `.envrc.example` as a template for team members.
-
-### **Step 6: Deploy Worker**
-```bash
-# Deploy (direnv will automatically provide environment variables)
+# Deploy
 wrangler deploy
 
 # Initialize the database
 curl "https://your-worker.workers.dev/init-db"
 ```
 
-### **Step 7: Configure Custom Domain**
+### **Step 6: Configure Custom Domain**
 
 #### **DNS Configuration:**
 1. **Cloudflare Dashboard** → Your domain
@@ -254,7 +203,7 @@ curl "https://your-worker.workers.dev/init-db"
    - **Route**: `training-status.your-company.com/*`
    - **Zone**: `your-company.com`
 
-### **Step 8: Configure Cloudflare Access Application**
+### **Step 7: Configure Cloudflare Access Application**
 
 1. **Zero Trust Dashboard** → **Access** → **Applications**
 2. **Add Application** → **Self-hosted**
@@ -278,7 +227,7 @@ curl "https://your-worker.workers.dev/init-db"
    - After creating, note the **Application Audience ID**
    - Set it as secret: `wrangler secret put ACCESS_APP_AUD`
 
-### **Step 9: Configure External Evaluation**
+### **Step 8: Configure External Evaluation**
 
 1. **Zero Trust Dashboard** → **Access** → **Applications**
 2. **Select your protected application** (the one requiring training)
@@ -494,18 +443,12 @@ git clone https://github.com/macharpe/cloudflare-access-sso-worker.git
 cd cloudflare-access-sso-worker
 npm install
 
-# Install and setup direnv
-brew install direnv  # or apt install direnv
-echo 'eval "$(direnv hook bash)"' >> ~/.bashrc && source ~/.bashrc
-
 # Configure infrastructure
 wrangler kv:namespace create "KV"
 wrangler d1 create training-completion-status-db
 
-# Setup environment
-cp .envrc.example .envrc
-# Edit .envrc with your actual IDs from above commands
-direnv allow
+# Update wrangler.jsonc with your actual IDs from above commands
+# (See comments in wrangler.jsonc for what needs to be updated)
 
 # Deploy and test
 wrangler deploy

@@ -6,7 +6,8 @@
   "main": "src/index.js",
 
   // KV Storage for RSA key pairs (automatically generated)
-  // Uses environment variable KV_NAMESPACE_ID
+  // IMPORTANT: Replace with your own KV namespace ID when cloning this repository
+  // Create with: wrangler kv:namespace create "KV"
   "kv_namespaces": [
     {
       "binding": "KV",
@@ -15,7 +16,8 @@
   ],
 
   // D1 Database for training completion status tracking
-  // Uses environment variable D1_DATABASE_ID
+  // IMPORTANT: Replace with your own D1 database ID when cloning this repository
+  // Create with: wrangler d1 create training-completion-status-db
   "d1_databases": [
     {
       "binding": "DB",
@@ -24,7 +26,8 @@
     }
   ],
 
-  // Environment Variables - Uses direnv variables
+  // Environment Variables
+  // IMPORTANT: Update these domains with your own when cloning this repository
   "vars": {
     "TEAM_DOMAIN": "macharpe.cloudflareaccess.com",
     "ADMIN_DOMAIN": "training-status.macharpe.com",
