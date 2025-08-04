@@ -2,6 +2,8 @@
 
 A **production-ready Cloudflare Worker** that implements an **External Evaluation Rule** for Cloudflare Access, providing training-based access control to enhance your Zero Trust security posture. This worker maintains a database of user training completion status and blocks access to sensitive applications until users complete required security training.
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/macharpe/cloudflare-access-sso-worker)
+
 ![Cloudflare Zero Trust](https://img.shields.io/badge/Cloudflare-Zero%20Trust-orange?logo=cloudflare)
 ![Workers](https://img.shields.io/badge/Cloudflare-Workers-blue?logo=cloudflare)
 ![D1 Database](https://img.shields.io/badge/Cloudflare-D1%20Database-green?logo=cloudflare)
