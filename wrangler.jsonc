@@ -10,7 +10,7 @@
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "${KV_NAMESPACE_ID}"
+      "id": "47a5e5e1ae424e609fc579ea01d58728"
     }
   ],
 
@@ -20,14 +20,14 @@
     {
       "binding": "DB",
       "database_name": "training-completion-status-db",
-      "database_id": "${D1_DATABASE_ID}"
+      "database_id": "6867bf4a-f611-43ce-8100-d36a3bb67adc"
     }
   ],
 
   // Environment Variables - Uses direnv variables
   "vars": {
-    "TEAM_DOMAIN": "${TEAM_DOMAIN}",
-    "ADMIN_DOMAIN": "${ADMIN_DOMAIN}",
+    "TEAM_DOMAIN": "macharpe.cloudflareaccess.com",
+    "ADMIN_DOMAIN": "training-status.macharpe.com",
     "DEBUG": false
   },
 
