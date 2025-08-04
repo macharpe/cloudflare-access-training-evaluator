@@ -124,7 +124,7 @@ graph TD
 ### **Step 1: Project Setup**
 ```bash
 # Clone the repository
-git clone <your-repository-url>
+git clone https://github.com/macharpe/cloudflare-access-sso-worker.git
 cd cloudflare-access-sso-worker
 
 # Install dependencies
@@ -474,10 +474,14 @@ wrangler d1 execute training-completion-status-db --remote \
 - [Cloudflare D1 Database](https://developers.cloudflare.com/d1/)
 - [Cloudflare Zero Trust](https://developers.cloudflare.com/cloudflare-one/)
 
+### **GitHub Repository**
+- **Repository**: [https://github.com/macharpe/cloudflare-access-sso-worker](https://github.com/macharpe/cloudflare-access-sso-worker)
+- **Issues & Support**: [GitHub Issues](https://github.com/macharpe/cloudflare-access-sso-worker/issues)
+- **Cloudflare Integration**: Repository is linked to the Cloudflare Worker for automatic deployments
+
 ### **Community & Support**
 - [Cloudflare Community Forum](https://community.cloudflare.com/)
 - [Cloudflare Discord](https://discord.gg/cloudflaredev)
-- [GitHub Issues](https://github.com/your-org/cloudflare-access-sso-worker/issues)
 
 ---
 
@@ -486,7 +490,7 @@ wrangler d1 execute training-completion-status-db --remote \
 ### **Quick Start for Development**
 ```bash
 # Clone and setup
-git clone <repository-url>
+git clone https://github.com/macharpe/cloudflare-access-sso-worker.git
 cd cloudflare-access-sso-worker
 npm install
 
