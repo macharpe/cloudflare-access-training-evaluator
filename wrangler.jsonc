@@ -44,50 +44,10 @@
     "mode": "smart"
   },
 
-  // Rate Limiting for API protection
+  // CPU limits for resource protection
   "limits": {
     "cpu_ms": 50
-  },
-
-  // Rate limiting rules to protect all endpoints
-  "rules": [
-    {
-      "type": "rate_limit",
-      "value": {
-        "threshold": 100,
-        "period": 60,
-        "action": "block",
-        "match": "/*",
-        "characteristics": ["ip.src"],
-        "counting_expression": "",
-        "mitigation_timeout": 300
-      }
-    },
-    {
-      "type": "rate_limit", 
-      "value": {
-        "threshold": 20,
-        "period": 60,
-        "action": "block", 
-        "match": "/admin*",
-        "characteristics": ["ip.src"],
-        "counting_expression": "",
-        "mitigation_timeout": 600
-      }
-    },
-    {
-      "type": "rate_limit",
-      "value": {
-        "threshold": 50,
-        "period": 60,
-        "action": "block",
-        "match": "/api/*",
-        "characteristics": ["ip.src"], 
-        "counting_expression": "",
-        "mitigation_timeout": 300
-      }
-    }
-  ]
+  }
 
   // Secrets Configuration (use wrangler secret put commands):
   // 
