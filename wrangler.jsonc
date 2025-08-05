@@ -42,11 +42,6 @@
   // Smart Placement for optimal performance and reduced latency
   "placement": {
     "mode": "smart"
-  },
-
-  // CPU limits for resource protection
-  "limits": {
-    "cpu_ms": 50
   }
 
   // Secrets Configuration (use wrangler secret put commands):
