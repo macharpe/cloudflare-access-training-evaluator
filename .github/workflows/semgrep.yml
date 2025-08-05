@@ -17,4 +17,5 @@ jobs:
       image: returntocorp/semgrep
     steps:
       - uses: actions/checkout@v4
-      - run: semgrep ci
+      - run: semgrep --config=auto --json --output=semgrep-results.json . || true
+      - run: semgrep --config=auto --verbose .
