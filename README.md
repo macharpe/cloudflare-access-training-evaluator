@@ -9,6 +9,8 @@ A **production-ready Cloudflare Worker** that implements an **External Evaluatio
 ![D1 Database](https://img.shields.io/badge/Cloudflare-D1%20Database-green?logo=cloudflare)
 ![Access Integration](https://img.shields.io/badge/Cloudflare-Access%20Protected-blue?logo=cloudflare)
 
+![Training Completion Dashboard Screenshot](images/dashboard-screenshot.png)
+
 ## 🎯 **Core Use Case: Training-Based Access Control**
 
 ### **The Security Challenge**
