@@ -171,10 +171,18 @@ The `wrangler.jsonc` file contains all the configuration for your Worker includi
    - Users (`okta.users.read`)
    - Groups (`okta.groups.read`)
 
-#### **Configure Secrets**
+#### **Configure Environment Variables and Secrets**
+
+**Environment Variables** (in `wrangler.jsonc` vars section):
+```json
+"vars": {
+  "OKTA_DOMAIN": "your-okta-domain.okta.com"
+}
+```
+
+**Secrets**:
 ```bash
 # Required: Okta integration (if using)
-wrangler secret put OKTA_DOMAIN      # e.g., "dev-12345.okta.com"
 wrangler secret put OKTA_API_TOKEN   # Your Okta API token from above
 
 # Required: Access application audience (from Zero Trust Dashboard)
