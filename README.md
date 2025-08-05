@@ -2,7 +2,7 @@
 
 A **production-ready Cloudflare Worker** that implements an **External Evaluation Rule** for Cloudflare Access, providing training-based access control to enhance your Zero Trust security posture. This worker maintains a database of user training completion status and blocks access to sensitive applications until users complete required security training.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/macharpe/cloudflare-access-sso-worker)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/macharpe/cloudflare-access-training-evaluator)
 
 ![Cloudflare Zero Trust](https://img.shields.io/badge/Cloudflare-Zero%20Trust-orange?logo=cloudflare)
 ![Workers](https://img.shields.io/badge/Cloudflare-Workers-blue?logo=cloudflare)
@@ -128,8 +128,8 @@ graph TD
 ### **Step 1: Project Setup**
 ```bash
 # Clone the repository
-git clone https://github.com/macharpe/cloudflare-access-sso-worker.git
-cd cloudflare-access-sso-worker
+git clone https://github.com/macharpe/cloudflare-access-training-evaluator.git
+cd cloudflare-access-training-evaluator
 
 # Install dependencies
 npm install
@@ -381,8 +381,8 @@ wrangler d1 execute training-completion-status-db --remote \
 - [Cloudflare Zero Trust](https://developers.cloudflare.com/cloudflare-one/)
 
 ### **GitHub Repository**
-- **Repository**: [https://github.com/macharpe/cloudflare-access-sso-worker](https://github.com/macharpe/cloudflare-access-sso-worker)
-- **Issues & Support**: [GitHub Issues](https://github.com/macharpe/cloudflare-access-sso-worker/issues)
+- **Repository**: [https://github.com/macharpe/cloudflare-access-training-evaluator](https://github.com/macharpe/cloudflare-access-training-evaluator)
+- **Issues & Support**: [GitHub Issues](https://github.com/macharpe/cloudflare-access-training-evaluator/issues)
 - **Cloudflare Integration**: Repository is linked to the Cloudflare Worker for automatic deployments
 
 ### **Community & Support**
@@ -396,8 +396,8 @@ wrangler d1 execute training-completion-status-db --remote \
 ### **Quick Start for Development**
 ```bash
 # Clone and setup
-git clone https://github.com/macharpe/cloudflare-access-sso-worker.git
-cd cloudflare-access-sso-worker
+git clone https://github.com/macharpe/cloudflare-access-training-evaluator.git
+cd cloudflare-access-training-evaluator
 npm install
 
 # Configure infrastructure
