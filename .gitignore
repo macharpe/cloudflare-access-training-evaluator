@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Wrangler files
+.wrangler/
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
+wrangler.local.*
+
+# direnv files
+.envrc
+!.envrc.example
+
+# Build outputs
+dist/
+
+# Temporary files
+tmp/
+*.tmp
+*.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Claude Code project instructions
+CLAUDE.md
