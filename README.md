@@ -8,6 +8,7 @@ A **production-ready Cloudflare Worker** that implements an **External Evaluatio
 ![Workers](https://img.shields.io/badge/Cloudflare-Workers-blue?logo=cloudflare)
 ![D1 Database](https://img.shields.io/badge/Cloudflare-D1%20Database-green?logo=cloudflare)
 ![Access Integration](https://img.shields.io/badge/Cloudflare-Access%20Protected-blue?logo=cloudflare)
+![Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
 
 ![Training Completion Dashboard Screenshot](images/dashboard-screenshot.png)
 
