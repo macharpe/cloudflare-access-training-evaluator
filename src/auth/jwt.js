@@ -114,7 +114,7 @@ async function fetchAccessPublicKey(env, kid) {
  * @returns {Object} Key ID and private key
  */
 async function loadSigningKey(env) {
-  const keyset = await env.KV.get('external_auth_keys', 'json')
+  const keyset = await env.KEY_STORAGE.get('external_auth_keys', 'json')
   if (keyset) {
     const signingKey = await crypto.subtle.importKey(
       'jwk',
