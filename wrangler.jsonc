@@ -1,0 +1,55 @@
+{
+  // Cloudflare Access External Evaluation Worker with Training Certification System
+  "name": "cloudflare-access-training-evaluator",
+  "workers_dev": false,
+  "compatibility_date": "2024-08-06",
+  "main": "src/index.js",
+
+  // KV Storage for RSA key pairs (automatically generated)
+  // IMPORTANT: Replace with your own KV namespace ID when cloning this repository
+  // Create with: wrangler kv:namespace create "KV"
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "47a5e5e1ae424e609fc579ea01d58728"
+    }
+  ],
+
+  // D1 Database for training completion status tracking
+  // IMPORTANT: Replace with your own D1 database ID when cloning this repository
+  // Create with: wrangler d1 create training-completion-status-db
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "training-completion-status-db",
+      "database_id": "6867bf4a-f611-43ce-8100-d36a3bb67adc"
+    }
+  ],
+
+  // Environment Variables
+  // IMPORTANT: Update these domains with your own when cloning this repository
+  "vars": {
+    "TEAM_DOMAIN": "macharpe.cloudflareaccess.com",
+    "ADMIN_DOMAIN": "training-status.macharpe.com",
+    "OKTA_DOMAIN": "trial-6147933.okta.com",
+    "DEBUG": false
+  },
+
+  // Observability - provides Worker analytics and logs
+  "observability": {
+    "enabled": true
+  },
+
+  // Smart Placement for optimal performance and reduced latency
+  "placement": {
+    "mode": "smart"
+  }
+
+  // Secrets Configuration (use wrangler secret put commands):
+  // 
+  // Required for Okta integration:
+  // wrangler secret put OKTA_API_TOKEN     // Your Okta API token
+  //
+  // Required for Cloudflare Access integration:
+  // wrangler secret put ACCESS_APP_AUD     // Access application audience ID
+}
