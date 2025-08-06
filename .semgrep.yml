@@ -1,0 +1,59 @@
+rules:
+  - id: cloudflare-worker-security-check
+    pattern-either:
+      - pattern: |
+          console.log($SECRET)
+      - pattern: |
+          console.error($SECRET)
+      - pattern: |
+          JSON.stringify({..., password: $PWD, ...})
+    message: |
+      Potential secret exposure in logs. Avoid logging sensitive data in Cloudflare Workers.
+    languages: [javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      subcategory: [audit]
+      confidence: HIGH
+      
+  - id: jwt-hardcoded-secret
+    pattern-either:
+      - pattern: |
+          jwt.sign($DATA, "...")
+      - pattern: |
+          jwt.verify($TOKEN, "...")
+    message: |
+      Hardcoded JWT secret detected. Use environment variables for JWT secrets.
+    languages: [javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      subcategory: [audit]
+      confidence: HIGH
+
+  - id: sql-injection-check
+    pattern-either:
+      - pattern: |
+          $DB.prepare("... " + $INPUT + " ...")
+      - pattern: |
+          $DB.exec("... " + $INPUT + " ...")
+    message: |
+      Potential SQL injection vulnerability. Use parameterized queries with .bind().
+    languages: [javascript]
+    severity: ERROR
+    metadata:
+      category: security
+      subcategory: [audit]
+      confidence: HIGH
+
+  - id: unsafe-json-parse
+    pattern: |
+      JSON.parse($INPUT)
+    message: |
+      Unsafe JSON.parse usage. Consider validating input or using try-catch blocks.
+    languages: [javascript]
+    severity: WARNING
+    metadata:
+      category: security
+      subcategory: [audit]
+      confidence: MEDIUM

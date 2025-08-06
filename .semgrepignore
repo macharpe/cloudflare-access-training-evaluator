@@ -1,0 +1,15 @@
+# Ignore common false positives
+node_modules/
+*.min.js
+*.bundle.js
+package-lock.json
+
+# Ignore specific files that may have intentional patterns
+images/
+*.png
+*.jpg
+*.gif
+*.svg
+
+# Ignore database migration files (they may contain example data)
+src/database/migrations/
