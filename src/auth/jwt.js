@@ -94,7 +94,7 @@ export async function signJWT(env, payload) {
 async function fetchAccessPublicKey(env, kid) {
   const resp = await fetch(`https://${env.TEAM_DOMAIN}/cdn-cgi/access/certs`)
   const keys = await resp.json()
-  const jwk = keys.keys.filter(key => key.kid == kid)[0]
+  const jwk = keys.keys.filter((key) => key.kid == kid)[0]
   const key = await crypto.subtle.importKey(
     'jwk',
     jwk,

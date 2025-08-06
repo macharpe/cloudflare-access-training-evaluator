@@ -10,19 +10,21 @@
  */
 export function isAdminAuthenticated(request, env) {
   if (!env.ADMIN_API_KEY) {
-    console.warn('ADMIN_API_KEY not configured - admin endpoints are unprotected!')
+    console.warn(
+      'ADMIN_API_KEY not configured - admin endpoints are unprotected!',
+    )
     return true // Allow access if no key is configured (for development)
   }
 
   const url = new URL(request.url)
   const queryKey = url.searchParams.get('key')
   const authHeader = request.headers.get('Authorization')
-  
+
   // Check query parameter: ?key=your-secret-key
   if (queryKey && queryKey === env.ADMIN_API_KEY) {
     return true
   }
-  
+
   // Check Authorization header: Bearer your-secret-key
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7)
@@ -30,7 +32,7 @@ export function isAdminAuthenticated(request, env) {
       return true
     }
   }
-  
+
   return false
 }
 
@@ -39,18 +41,22 @@ export function isAdminAuthenticated(request, env) {
  * @returns {Response} 401 Unauthorized response
  */
 export function createUnauthorizedResponse() {
-  return new Response(JSON.stringify({
-    error: 'Unauthorized',
-    message: 'Admin access required. Provide API key via ?key=your-key or Authorization: Bearer your-key header.'
-  }), {
-    status: 401,
-    headers: { 'content-type': 'application/json' }
-  })
+  return new Response(
+    JSON.stringify({
+      error: 'Unauthorized',
+      message:
+        'Admin access required. Provide API key via ?key=your-key or Authorization: Bearer your-key header.',
+    }),
+    {
+      status: 401,
+      headers: { 'content-type': 'application/json' },
+    },
+  )
 }
 
 /**
  * Create an unauthorized HTML response for web interface
- * @returns {Response} 401 Unauthorized HTML response  
+ * @returns {Response} 401 Unauthorized HTML response
  */
 export function createUnauthorizedHtmlResponse() {
   const html = `
@@ -117,9 +123,9 @@ export function createUnauthorizedHtmlResponse() {
 </body>
 </html>
   `
-  
+
   return new Response(html, {
     status: 401,
-    headers: { 'content-type': 'text/html' }
+    headers: { 'content-type': 'text/html' },
   })
 }

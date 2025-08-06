@@ -1,4 +1,4 @@
-import { updateUserTrainingStatus, updateUserTrainingStatusByEmail } from '../database/training.js'
+import { updateUserTrainingStatusByEmail } from '../database/training.js'
 
 /**
  * Get all users from the database
@@ -8,9 +8,9 @@ import { updateUserTrainingStatus, updateUserTrainingStatusByEmail } from '../da
 async function getAllUsers(env) {
   try {
     const result = await env.DB.prepare(
-      'SELECT id, username, first_name, primary_email, training_status, created_at, updated_at FROM users ORDER BY username'
+      'SELECT id, username, first_name, primary_email, training_status, created_at, updated_at FROM users ORDER BY username',
     ).all()
-    
+
     return result.results || []
   } catch (error) {
     console.error('Database error:', error)
@@ -25,7 +25,7 @@ async function getAllUsers(env) {
  */
 export async function handleWebInterface(env) {
   const users = await getAllUsers(env)
-  
+
   const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -326,15 +326,15 @@ export async function handleWebInterface(env) {
             
             <div class="stats">
                 <div class="stat-card">
-                    <div class="stat-number" id="completedCount">${users.filter(u => u.training_status === 'completed').length}</div>
+                    <div class="stat-number" id="completedCount">${users.filter((u) => u.training_status === 'completed').length}</div>
                     <div class="stat-label">Completed</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number" id="startedCount">${users.filter(u => u.training_status === 'started').length}</div>
+                    <div class="stat-number" id="startedCount">${users.filter((u) => u.training_status === 'started').length}</div>
                     <div class="stat-label">In Progress</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number" id="notStartedCount">${users.filter(u => u.training_status === 'not started').length}</div>
+                    <div class="stat-number" id="notStartedCount">${users.filter((u) => u.training_status === 'not started').length}</div>
                     <div class="stat-label">Not Started</div>
                 </div>
                 <div class="stat-card">
@@ -355,7 +355,9 @@ export async function handleWebInterface(env) {
                         </tr>
                     </thead>
                     <tbody>
-                        ${users.map(user => `
+                        ${users
+                          .map(
+                            (user) => `
                             <tr data-user-id="${user.id}">
                                 <td class="username">${user.first_name || '-'}</td>
                                 <td class="email">${user.primary_email || '-'}</td>
@@ -375,7 +377,9 @@ export async function handleWebInterface(env) {
                                 </td>
                                 <td class="timestamp">${new Date(user.updated_at).toLocaleString()}</td>
                             </tr>
-                        `).join('')}
+                        `,
+                          )
+                          .join('')}
                     </tbody>
                 </table>
             </div>
@@ -529,7 +533,7 @@ export async function handleWebInterface(env) {
 </body>
 </html>
   `
-  
+
   return new Response(html, {
     headers: { 'content-type': 'text/html' },
   })
@@ -545,53 +549,68 @@ export async function handleUpdateTraining(env, request) {
   try {
     const body = await request.json()
     const { email, status } = body
-    
+
     if (!email || !status) {
-      return new Response(JSON.stringify({ 
-        success: false, 
-        message: 'Email and status are required' 
-      }), {
-        status: 400,
-        headers: { 'content-type': 'application/json' },
-      })
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: 'Email and status are required',
+        }),
+        {
+          status: 400,
+          headers: { 'content-type': 'application/json' },
+        },
+      )
     }
-    
+
     if (!['not started', 'started', 'completed'].includes(status)) {
-      return new Response(JSON.stringify({ 
-        success: false, 
-        message: 'Invalid status value' 
-      }), {
-        status: 400,
-        headers: { 'content-type': 'application/json' },
-      })
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: 'Invalid status value',
+        }),
+        {
+          status: 400,
+          headers: { 'content-type': 'application/json' },
+        },
+      )
     }
-    
+
     const updated = await updateUserTrainingStatusByEmail(env, email, status)
-    
+
     if (updated) {
-      return new Response(JSON.stringify({ 
-        success: true, 
-        message: 'Training status updated successfully' 
-      }), {
-        headers: { 'content-type': 'application/json' },
-      })
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Training status updated successfully',
+        }),
+        {
+          headers: { 'content-type': 'application/json' },
+        },
+      )
     } else {
-      return new Response(JSON.stringify({ 
-        success: false, 
-        message: 'User not found or update failed' 
-      }), {
-        status: 404,
-        headers: { 'content-type': 'application/json' },
-      })
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: 'User not found or update failed',
+        }),
+        {
+          status: 404,
+          headers: { 'content-type': 'application/json' },
+        },
+      )
     }
   } catch (error) {
     console.error('Update training error:', error)
-    return new Response(JSON.stringify({ 
-      success: false, 
-      message: 'Internal server error' 
-    }), {
-      status: 500,
-      headers: { 'content-type': 'application/json' },
-    })
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: 'Internal server error',
+      }),
+      {
+        status: 500,
+        headers: { 'content-type': 'application/json' },
+      },
+    )
   }
 }

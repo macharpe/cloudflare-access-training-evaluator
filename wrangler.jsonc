@@ -1,7 +1,7 @@
 {
   // Cloudflare Access External Evaluation Worker with Training Certification System
   "name": "cloudflare-access-training-evaluator",
-  "workers_dev": true,
+  "workers_dev": false,
   "compatibility_date": "2024-08-06",
   "main": "src/index.js",
 

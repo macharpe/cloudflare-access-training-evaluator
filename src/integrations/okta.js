@@ -10,25 +10,32 @@
 export async function fetchOktaUsers(env) {
   try {
     if (!env.OKTA_DOMAIN || !env.OKTA_API_TOKEN) {
-      throw new Error('Okta configuration missing: OKTA_DOMAIN and OKTA_API_TOKEN required')
+      throw new Error(
+        'Okta configuration missing: OKTA_DOMAIN and OKTA_API_TOKEN required',
+      )
     }
 
-    const response = await fetch(`https://${env.OKTA_DOMAIN}/api/v1/users?limit=200`, {
-      headers: {
-        'Authorization': `SSWS ${env.OKTA_API_TOKEN}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
-    })
+    const response = await fetch(
+      `https://${env.OKTA_DOMAIN}/api/v1/users?limit=200`,
+      {
+        headers: {
+          Authorization: `SSWS ${env.OKTA_API_TOKEN}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+      },
+    )
 
     if (!response.ok) {
-      throw new Error(`Okta API error: ${response.status} ${response.statusText}`)
+      throw new Error(
+        `Okta API error: ${response.status} ${response.statusText}`,
+      )
     }
 
     const users = await response.json()
     console.log(`Fetched ${users.length} users from Okta`)
-    
-    return users.map(user => ({
+
+    return users.map((user) => ({
       id: user.id,
       username: user.profile.login.split('@')[0].toLowerCase(), // Extract username from email
       email: user.profile.login,
@@ -36,7 +43,7 @@ export async function fetchOktaUsers(env) {
       lastName: user.profile.lastName,
       status: user.status, // ACTIVE, SUSPENDED, etc.
       created: user.created,
-      lastLogin: user.lastLogin
+      lastLogin: user.lastLogin,
     }))
   } catch (error) {
     console.error('Error fetching Okta users:', error)
@@ -53,25 +60,32 @@ export async function fetchOktaUsers(env) {
 export async function fetchOktaGroupUsers(env, groupId) {
   try {
     if (!env.OKTA_DOMAIN || !env.OKTA_API_TOKEN) {
-      throw new Error('Okta configuration missing: OKTA_DOMAIN and OKTA_API_TOKEN required')
+      throw new Error(
+        'Okta configuration missing: OKTA_DOMAIN and OKTA_API_TOKEN required',
+      )
     }
 
-    const response = await fetch(`https://${env.OKTA_DOMAIN}/api/v1/groups/${groupId}/users`, {
-      headers: {
-        'Authorization': `SSWS ${env.OKTA_API_TOKEN}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
-    })
+    const response = await fetch(
+      `https://${env.OKTA_DOMAIN}/api/v1/groups/${groupId}/users`,
+      {
+        headers: {
+          Authorization: `SSWS ${env.OKTA_API_TOKEN}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+      },
+    )
 
     if (!response.ok) {
-      throw new Error(`Okta Groups API error: ${response.status} ${response.statusText}`)
+      throw new Error(
+        `Okta Groups API error: ${response.status} ${response.statusText}`,
+      )
     }
 
     const users = await response.json()
     console.log(`Fetched ${users.length} users from Okta group ${groupId}`)
-    
-    return users.map(user => ({
+
+    return users.map((user) => ({
       id: user.id,
       username: user.profile.login.split('@')[0].toLowerCase(),
       email: user.profile.login,
@@ -79,7 +93,7 @@ export async function fetchOktaGroupUsers(env, groupId) {
       lastName: user.profile.lastName,
       status: user.status,
       created: user.created,
-      lastLogin: user.lastLogin
+      lastLogin: user.lastLogin,
     }))
   } catch (error) {
     console.error('Error fetching Okta group users:', error)
@@ -98,34 +112,46 @@ export async function syncUsersToDatabase(env, oktaUsers) {
     added: 0,
     updated: 0,
     skipped: 0,
-    errors: []
+    errors: [],
   }
 
   for (const user of oktaUsers) {
     try {
       // Check if user already exists
       const existingUser = await env.DB.prepare(
-        'SELECT id, username FROM users WHERE username = ?'
-      ).bind(user.username).first()
+        'SELECT id, username FROM users WHERE username = ?',
+      )
+        .bind(user.username)
+        .first()
 
       if (existingUser) {
         // User exists, update first name and email if missing
-        await env.DB.prepare(`
+        await env.DB.prepare(
+          `
           UPDATE users SET first_name = ?, primary_email = ?, updated_at = CURRENT_TIMESTAMP 
           WHERE username = ?
-        `).bind(user.firstName, user.email, user.username).run()
-        
+        `,
+        )
+          .bind(user.firstName, user.email, user.username)
+          .run()
+
         results.updated++
         console.log(`Updated user details for: ${user.username}`)
       } else {
         // Add new user with default "not started" training status and user details
-        await env.DB.prepare(`
+        await env.DB.prepare(
+          `
           INSERT INTO users (username, first_name, primary_email, training_status, created_at, updated_at) 
           VALUES (?, ?, ?, 'not started', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `).bind(user.username, user.firstName, user.email).run()
-        
+        `,
+        )
+          .bind(user.username, user.firstName, user.email)
+          .run()
+
         results.added++
-        console.log(`Added new user: ${user.username} (${user.firstName} - ${user.email})`)
+        console.log(
+          `Added new user: ${user.username} (${user.firstName} - ${user.email})`,
+        )
       }
     } catch (error) {
       console.error(`Error syncing user ${user.username}:`, error)
@@ -144,28 +170,35 @@ export async function syncUsersToDatabase(env, oktaUsers) {
 export async function fetchOktaGroups(env) {
   try {
     if (!env.OKTA_DOMAIN || !env.OKTA_API_TOKEN) {
-      throw new Error('Okta configuration missing: OKTA_DOMAIN and OKTA_API_TOKEN required')
+      throw new Error(
+        'Okta configuration missing: OKTA_DOMAIN and OKTA_API_TOKEN required',
+      )
     }
 
-    const response = await fetch(`https://${env.OKTA_DOMAIN}/api/v1/groups?limit=200`, {
-      headers: {
-        'Authorization': `SSWS ${env.OKTA_API_TOKEN}`,
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
-    })
+    const response = await fetch(
+      `https://${env.OKTA_DOMAIN}/api/v1/groups?limit=200`,
+      {
+        headers: {
+          Authorization: `SSWS ${env.OKTA_API_TOKEN}`,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+      },
+    )
 
     if (!response.ok) {
-      throw new Error(`Okta Groups API error: ${response.status} ${response.statusText}`)
+      throw new Error(
+        `Okta Groups API error: ${response.status} ${response.statusText}`,
+      )
     }
 
     const groups = await response.json()
-    return groups.map(group => ({
+    return groups.map((group) => ({
       id: group.id,
       name: group.profile.name,
       description: group.profile.description,
       type: group.type,
-      created: group.created
+      created: group.created,
     }))
   } catch (error) {
     console.error('Error fetching Okta groups:', error)

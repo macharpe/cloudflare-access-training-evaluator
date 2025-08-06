@@ -14,17 +14,22 @@ A **production-ready Cloudflare Worker** that implements an **External Evaluatio
 ## 🎯 **Core Use Case: Training-Based Access Control**
 
 ### **The Security Challenge**
+
 Traditional identity providers (Google, Okta, Azure AD) can authenticate users, but they can't enforce **business-specific security requirements** like mandatory training completion. This creates a security gap where authenticated users might access sensitive systems without proper security awareness.
 
 ### **The Solution**
+
 This worker acts as a **security gateway** that:
+
 1. **Intercepts** all access requests after identity provider authentication
 2. **Validates** user training completion status against a centralized database
 3. **Blocks** access to sensitive applications until training is completed
 4. **Provides** a secure management interface protected by Cloudflare Access
 
 ### **Zero Trust Enhancement**
+
 By integrating with Cloudflare Access External Evaluation, this worker adds a **critical security layer** that enforces:
+
 - ✅ **Mandatory Security Training** before accessing sensitive applications
 - ✅ **Real-time Compliance Verification** on every access request
 - ✅ **Centralized Training Status Management** via secure admin interface
@@ -44,7 +49,7 @@ graph TD
     E --> F{Training Complete?}
     F -->|Yes| G[Access Granted ✅]
     F -->|No| H[Access Denied ❌]
-    
+
     I[Admin User] --> J[Cloudflare Access Login]
     J --> K[Custom Domain Admin Interface]
     K --> L[Training Management Dashboard]
@@ -53,6 +58,7 @@ graph TD
 ```
 
 ### **Security Flow**
+
 1. **User Authentication**: User authenticates via identity provider (Google, Okta, etc.)
 2. **Access Request**: User attempts to access a protected application
 3. **External Evaluation**: Cloudflare Access calls this worker for additional validation
@@ -61,6 +67,7 @@ graph TD
 6. **Final Decision**: Cloudflare Access enforces the training-based access decision
 
 ### **Admin Management Flow**
+
 1. **Admin Access**: Administrator visits custom domain (e.g., `training-status.company.com`)
 2. **Access Protection**: Cloudflare Access authenticates the admin user
 3. **Admin Interface**: Secure dashboard for managing training status and syncing users
@@ -71,12 +78,14 @@ graph TD
 ## 🚀 **Key Features**
 
 ### **🎓 Enterprise Training Compliance**
+
 - **Training Status Tracking**: Three-state model (`not started` → `started` → `completed`)
 - **Email-Based Identification**: Uses primary email for user identification
 - **Real-time Enforcement**: Blocks access instantly based on training status
 - **Audit Trail**: Complete logging of all access decisions
 
 ### **🔐 Production Security**
+
 - **Cloudflare Access Protected**: Admin interface secured with enterprise SSO
 - **Custom Domain**: Professional branded URL for admin access
 - **JWT Token Validation**: Cryptographic verification of all Access tokens
@@ -84,6 +93,7 @@ graph TD
 - **Signed Responses**: All responses to Access are cryptographically signed
 
 ### **📊 Professional Management Interface**
+
 - **Secure Admin Dashboard**: Protected by Cloudflare Access authentication
 - **Custom Domain Access**: Professional URL (e.g., `training-status.company.com`)
 - **Real-time User Overview**: View all users with training status and access permissions
@@ -91,6 +101,7 @@ graph TD
 - **Responsive Design**: Works on desktop and mobile devices
 
 ### **🔄 Enterprise Identity Integration**
+
 - **Okta Synchronization**: Pull users directly from your Okta instance
 - **User Details**: Automatically sync first names and email addresses
 - **Group Support**: Sync specific user groups for targeted training programs
@@ -101,31 +112,35 @@ graph TD
 ## 📋 **API Endpoints Reference**
 
 ### **Public Endpoints** (Used by Cloudflare Access)
-| Endpoint | Method | Description | Usage |
-|----------|--------|-------------|-------|
-| `/` | POST | **Main evaluation endpoint** | Called by Cloudflare Access for every access request |
-| `/keys` | GET | **JWKS public key endpoint** | Used by Access to verify worker response signatures |
+
+| Endpoint | Method | Description                  | Usage                                                |
+| -------- | ------ | ---------------------------- | ---------------------------------------------------- |
+| `/`      | POST   | **Main evaluation endpoint** | Called by Cloudflare Access for every access request |
+| `/keys`  | GET    | **JWKS public key endpoint** | Used by Access to verify worker response signatures  |
 
 ### **Protected Admin Endpoints** (Cloudflare Access Authentication)
-| Endpoint | Method | Description | Purpose |
-|----------|--------|-------------|---------|
-| `custom-domain/admin` | GET | **Training management dashboard** | Secure web interface for administrators |
-| `custom-domain/api/update-training` | POST | **Update user training status** | Change training completion status |
-| `custom-domain/api/okta/sync` | POST | **Sync users from Okta** | Import/update users from identity provider |
-| `custom-domain/api/okta/users` | GET | **List Okta users** | View available users before syncing |
-| `custom-domain/api/okta/groups` | GET | **List Okta groups** | Find group IDs for targeted syncing |
+
+| Endpoint                            | Method | Description                       | Purpose                                    |
+| ----------------------------------- | ------ | --------------------------------- | ------------------------------------------ |
+| `custom-domain/admin`               | GET    | **Training management dashboard** | Secure web interface for administrators    |
+| `custom-domain/api/update-training` | POST   | **Update user training status**   | Change training completion status          |
+| `custom-domain/api/okta/sync`       | POST   | **Sync users from Okta**          | Import/update users from identity provider |
+| `custom-domain/api/okta/users`      | GET    | **List Okta users**               | View available users before syncing        |
+| `custom-domain/api/okta/groups`     | GET    | **List Okta groups**              | Find group IDs for targeted syncing        |
 
 ---
 
 ## 🛠️ **Complete Deployment Guide**
 
 ### **Prerequisites**
+
 - Cloudflare account with **Workers** and **Zero Trust Access** enabled
 - Custom domain configured with **Cloudflare** (e.g., `company.com`)
 - **Wrangler CLI** installed: `npm install -g wrangler`
 - **Okta instance** (optional, for user synchronization)
 
 ### **Step 1: Project Setup**
+
 ```bash
 # Clone the repository
 git clone https://github.com/macharpe/cloudflare-access-training-evaluator.git
@@ -136,6 +151,7 @@ npm install
 ```
 
 ### **Step 2: Infrastructure Setup**
+
 ```bash
 # Create KV namespace for RSA keys
 wrangler kv:namespace create "KV"
@@ -149,8 +165,9 @@ wrangler d1 create training-completion-status-db
 The `wrangler.jsonc` file contains all the configuration for your Worker including KV namespace, D1 database, and environment variables.
 
 **When cloning this repository:**
+
 - ✅ Update KV namespace ID with your own (see comments in wrangler.jsonc)
-- ✅ Update D1 database ID with your own (see comments in wrangler.jsonc)  
+- ✅ Update D1 database ID with your own (see comments in wrangler.jsonc)
 - ✅ Update domain variables with your own domains (see comments in wrangler.jsonc)
 - ✅ Direct resource IDs for reliable deployments and GitHub integration
 - ✅ Simplified deployment with `wrangler deploy`
@@ -158,6 +175,7 @@ The `wrangler.jsonc` file contains all the configuration for your Worker includi
 ### **Step 4: Security Configuration**
 
 #### **Creating an Okta API Token**
+
 1. **Login to Okta Admin Dashboard**: `https://your-okta-domain.okta.com/admin`
 2. **Navigate to API Tokens**:
    - **Security** → **API** → **Tokens**
@@ -174,6 +192,7 @@ The `wrangler.jsonc` file contains all the configuration for your Worker includi
 #### **Configure Environment Variables and Secrets**
 
 **Environment Variables** (in `wrangler.jsonc` vars section):
+
 ```json
 "vars": {
   "OKTA_DOMAIN": "your-okta-domain.okta.com"
@@ -181,6 +200,7 @@ The `wrangler.jsonc` file contains all the configuration for your Worker includi
 ```
 
 **Secrets**:
+
 ```bash
 # Required: Okta integration (if using)
 wrangler secret put OKTA_API_TOKEN   # Your Okta API token from above
@@ -190,26 +210,29 @@ wrangler secret put ACCESS_APP_AUD   # Your Access application audience ID
 ```
 
 ### **Step 5: Deploy Worker**
+
 ```bash
 # Deploy
 wrangler deploy
 
 # Initialize the database
-curl "https://your-worker.workers.dev/init-db"
+curl "https://your-custom-domain.com/init-db"
 ```
 
 ### **Step 6: Configure Custom Domain**
 
 #### **DNS Configuration:**
+
 1. **Cloudflare Dashboard** → Your domain
 2. **DNS** → **Records** → **Add record**
 3. **Configure**:
    - **Type**: `CNAME`
    - **Name**: `training-status` (or your preferred subdomain)
-   - **Target**: `your-worker.workers.dev`
+   - **Target**: `your-custom-domain.com`
    - **Proxy status**: ✅ **Proxied**
 
 #### **Worker Route:**
+
 1. **Workers & Pages** → **your-worker** → **Settings** → **Triggers**
 2. **Add Route**:
    - **Route**: `training-status.your-company.com/*`
@@ -244,12 +267,13 @@ curl "https://your-worker.workers.dev/init-db"
 1. **Zero Trust Dashboard** → **Access** → **Applications**
 2. **Select your protected application** (the one requiring training)
 3. **Edit Policy** → **Add External Evaluation Rule**:
-   - **Evaluate URL**: `https://your-worker.workers.dev` *(remove trailing "/" if present)*
-   - **Keys URL**: `https://your-worker.workers.dev/keys` *(remove trailing "/" if present)*
+   - **Evaluate URL**: `https://your-custom-domain.com` _(remove trailing "/" if present)_
+   - **Keys URL**: `https://your-custom-domain.com/keys` _(remove trailing "/" if present)_
 
 #### **Important: URL Format**
-- ✅ **Correct**: `https://your-worker.workers.dev`
-- ❌ **Incorrect**: `https://your-worker.workers.dev/`
+
+- ✅ **Correct**: `https://your-custom-domain.com`
+- ❌ **Incorrect**: `https://your-custom-domain.com/`
 - **Note**: Cloudflare Access External Evaluation requires URLs without trailing slashes to function properly
 
 ---
@@ -257,32 +281,38 @@ curl "https://your-worker.workers.dev/init-db"
 ## 👥 **Administration Guide**
 
 ### **Accessing the Admin Interface**
+
 ```
 https://training-status.your-company.com/admin
 ```
+
 - **Authentication**: Cloudflare Access (your corporate SSO)
 - **Interface**: Professional dashboard with user management
 - **Security**: Protected by Zero Trust policies
 
 ### **Initial Setup**
+
 1. **Visit the admin interface** using your custom domain
 2. **Authenticate** via Cloudflare Access
 3. **Sync users from Okta** using the sync button
 4. **Set initial training status** for users as needed
 
 ### **User Management**
+
 - **View Users**: See all synced users with training status
 - **Update Status**: Use dropdown menus to change training completion
 - **Sync Users**: One-click synchronization from Okta
 - **Monitor Access**: View which users have access based on training
 
 ### **API Management**
+
 All API endpoints are protected by Cloudflare Access:
+
 ```bash
 # Sync users (authenticated via Access)
 curl -X POST https://training-status.your-company.com/api/okta/sync
 
-# Update training status (authenticated via Access)  
+# Update training status (authenticated via Access)
 curl -X POST https://training-status.your-company.com/api/update-training \
   -H "Content-Type: application/json" \
   -d '{"email": "user@company.com", "status": "completed"}'
@@ -293,31 +323,37 @@ curl -X POST https://training-status.your-company.com/api/update-training \
 ## 🔧 **Customization**
 
 ### **Training Logic Customization**
+
 Edit `src/auth/evaluation.js` to modify access decision logic:
 
 ```javascript
 export async function externalEvaluation(claims, env) {
   const email = claims.identity.email
-  
+
   // Get user training status from database
   const user = await env.DB.prepare(
-    'SELECT training_status FROM users WHERE primary_email = ?'
-  ).bind(email).first()
-  
+    'SELECT training_status FROM users WHERE primary_email = ?',
+  )
+    .bind(email)
+    .first()
+
   if (!user) {
     console.log(`User ${email} not found in training database - denying access`)
     return false
   }
-  
+
   // Only allow access if training is completed
   const hasCompleted = user.training_status === 'completed'
-  console.log(`User ${email} training status: ${user.training_status} - ${hasCompleted ? 'ALLOW' : 'DENY'}`)
-  
+  console.log(
+    `User ${email} training status: ${user.training_status} - ${hasCompleted ? 'ALLOW' : 'DENY'}`,
+  )
+
   return hasCompleted
 }
 ```
 
 ### **Advanced Customization Options**
+
 - **Time-based validation**: Check if training is still valid (not expired)
 - **Multi-level training**: Different requirements for different applications
 - **Geographic restrictions**: Combine with location-based access controls
@@ -329,6 +365,7 @@ export async function externalEvaluation(claims, env) {
 ## 📊 **Monitoring and Operations**
 
 ### **Live Monitoring**
+
 ```bash
 # Watch real-time logs
 wrangler tail --format pretty
@@ -338,6 +375,7 @@ wrangler tail --format pretty | grep -E "(ALLOW|DENY)"
 ```
 
 ### **Database Queries**
+
 ```bash
 # View all users and training status
 wrangler d1 execute training-completion-status-db --remote \
@@ -353,6 +391,7 @@ wrangler d1 execute training-completion-status-db --remote \
 ```
 
 ### **Access Logs**
+
 - **Zero Trust Dashboard** → **Logs** → **Access**
 - Monitor admin interface access attempts
 - Track training status changes and user activity
@@ -362,18 +401,21 @@ wrangler d1 execute training-completion-status-db --remote \
 ## 🏢 **Production Deployment**
 
 ### **Security Checklist**
+
 - [ ] Configure appropriate Cloudflare Access policies for admin interface
 - [ ] Set up regular rotation of Okta API tokens and secrets
 - [ ] Disable debug logging (`DEBUG: false` in wrangler.jsonc)
 - [ ] Review and configure geographic access restrictions if needed
 
 ### **Monitoring & Maintenance**
+
 - [ ] Set up monitoring for Worker execution and D1 database performance
 - [ ] Configure log retention and audit trail storage
 - [ ] Plan for regular D1 database backups
 - [ ] Document incident response procedures for access failures
 
 ### **Scalability Notes**
+
 - D1 database handles thousands of users with automatic scaling
 - Global edge deployment provides sub-millisecond response times
 - RSA keys and configuration stored redundantly across regions
@@ -383,17 +425,20 @@ wrangler d1 execute training-completion-status-db --remote \
 ## 📚 **Resources & Support**
 
 ### **Documentation**
+
 - [Cloudflare Access External Evaluation](https://developers.cloudflare.com/cloudflare-one/policies/access/external-evaluation/)
 - [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
 - [Cloudflare D1 Database](https://developers.cloudflare.com/d1/)
 - [Cloudflare Zero Trust](https://developers.cloudflare.com/cloudflare-one/)
 
 ### **GitHub Repository**
+
 - **Repository**: [https://github.com/macharpe/cloudflare-access-training-evaluator](https://github.com/macharpe/cloudflare-access-training-evaluator)
 - **Issues & Support**: [GitHub Issues](https://github.com/macharpe/cloudflare-access-training-evaluator/issues)
 - **Cloudflare Integration**: Repository is linked to the Cloudflare Worker for automatic deployments
 
 ### **Community & Support**
+
 - [Cloudflare Community Forum](https://community.cloudflare.com/)
 - [Cloudflare Discord](https://discord.gg/cloudflaredev)
 
@@ -402,6 +447,7 @@ wrangler d1 execute training-completion-status-db --remote \
 ## 🚀 **Getting Started**
 
 ### **Quick Start for Development**
+
 ```bash
 # Clone and setup
 git clone https://github.com/macharpe/cloudflare-access-training-evaluator.git
@@ -420,6 +466,7 @@ wrangler deploy
 ```
 
 ### **Production Deployment Checklist**
+
 - [ ] Custom domain configured and DNS updated
 - [ ] Worker route configured for custom domain
 - [ ] Cloudflare Access application created and configured
@@ -430,7 +477,6 @@ wrangler deploy
 - [ ] Monitoring and alerting configured
 
 ---
-
 
 ## 📄 **License**
 

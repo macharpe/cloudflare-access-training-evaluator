@@ -10,7 +10,8 @@
 export async function initializeDatabase(env) {
   try {
     // Create users table
-    await env.DB.prepare(`
+    await env.DB.prepare(
+      `
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
@@ -20,16 +21,21 @@ export async function initializeDatabase(env) {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
-    `).run()
+    `,
+    ).run()
 
     // Create indexes for faster lookups
-    await env.DB.prepare(`
+    await env.DB.prepare(
+      `
       CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)
-    `).run()
-    
-    await env.DB.prepare(`
+    `,
+    ).run()
+
+    await env.DB.prepare(
+      `
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(primary_email)
-    `).run()
+    `,
+    ).run()
 
     // Apply migration to add new columns if they don't exist
     try {
@@ -37,9 +43,11 @@ export async function initializeDatabase(env) {
     } catch (e) {
       // Column already exists
     }
-    
+
     try {
-      await env.DB.prepare(`ALTER TABLE users ADD COLUMN primary_email TEXT`).run()
+      await env.DB.prepare(
+        `ALTER TABLE users ADD COLUMN primary_email TEXT`,
+      ).run()
     } catch (e) {
       // Column already exists
     }
@@ -63,9 +71,11 @@ export async function initializeDatabase(env) {
 export async function getUserTrainingStatus(env, username) {
   try {
     const result = await env.DB.prepare(
-      'SELECT training_status FROM users WHERE username = ?'
-    ).bind(username).first()
-    
+      'SELECT training_status FROM users WHERE username = ?',
+    )
+      .bind(username)
+      .first()
+
     return result ? result.training_status : null
   } catch (error) {
     console.error('Database error:', error)
@@ -82,11 +92,15 @@ export async function getUserTrainingStatus(env, username) {
  */
 export async function updateUserTrainingStatus(env, username, status) {
   try {
-    const result = await env.DB.prepare(`
+    const result = await env.DB.prepare(
+      `
       UPDATE users SET training_status = ?, updated_at = CURRENT_TIMESTAMP 
       WHERE username = ?
-    `).bind(status, username).run()
-    
+    `,
+    )
+      .bind(status, username)
+      .run()
+
     // Check both result.changes and result.meta.changes for compatibility
     const changes = result.changes || result.meta?.changes || 0
     return changes > 0
@@ -105,11 +119,15 @@ export async function updateUserTrainingStatus(env, username, status) {
  */
 export async function updateUserTrainingStatusByEmail(env, email, status) {
   try {
-    const result = await env.DB.prepare(`
+    const result = await env.DB.prepare(
+      `
       UPDATE users SET training_status = ?, updated_at = CURRENT_TIMESTAMP 
       WHERE primary_email = ?
-    `).bind(status, email).run()
-    
+    `,
+    )
+      .bind(status, email)
+      .run()
+
     // Check both result.changes and result.meta.changes for compatibility
     const changes = result.changes || result.meta?.changes || 0
     return changes > 0

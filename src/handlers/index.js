@@ -10,13 +10,18 @@ import { initializeDatabase } from '../database/training.js'
  */
 export async function handleDatabaseInitRequest(env) {
   const success = await initializeDatabase(env)
-  return new Response(JSON.stringify({ 
-    success, 
-    message: success ? 'Database initialized successfully' : 'Database initialization failed'
-  }), {
-    status: success ? 200 : 500,
-    headers: { 'content-type': 'application/json' },
-  })
+  return new Response(
+    JSON.stringify({
+      success,
+      message: success
+        ? 'Database initialized successfully'
+        : 'Database initialization failed',
+    }),
+    {
+      status: success ? 200 : 500,
+      headers: { 'content-type': 'application/json' },
+    },
+  )
 }
 
 /**
@@ -147,15 +152,15 @@ export async function handleExternalEvaluationRequest(env, request) {
 </body>
 </html>
     `
-    
+
     return new Response(html, {
-      headers: { 'content-type': 'text/html' }
+      headers: { 'content-type': 'text/html' },
     })
   }
-  
+
   const now = Math.round(Date.now() / 1000)
   let result = { success: false, iat: now, exp: now + 300 }
-  
+
   try {
     const body = await request.json()
     const claims = await verifyToken(env, body.token)
