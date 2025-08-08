@@ -87,11 +87,12 @@ graph TD
 
 ### **🔐 Production Security**
 
-- **Cloudflare Access Protected**: Admin interface secured with enterprise SSO
+- **Cloudflare Access Authentication**: All admin endpoints protected by Zero Trust authentication
 - **Custom Domain**: Professional branded URL for admin access
 - **JWT Token Validation**: Cryptographic verification of all Access tokens
 - **RSA Key Management**: Automatic key generation and secure storage
 - **Signed Responses**: All responses to Access are cryptographically signed
+- **Single Sign-On Integration**: Seamless authentication through your identity provider
 
 ### **📊 Professional Management Interface**
 
@@ -155,7 +156,7 @@ npm install
 
 ```bash
 # Create KV namespace for RSA keys
-wrangler kv:namespace create "KV"
+wrangler kv:namespace create "KEY_STORAGE"
 
 # Create D1 database for training status
 wrangler d1 create training-completion-status-db
@@ -210,17 +211,7 @@ wrangler secret put OKTA_API_TOKEN   # Your Okta API token from above
 wrangler secret put ACCESS_APP_AUD   # Your Access application audience ID
 ```
 
-### **Step 5: Deploy Worker**
-
-```bash
-# Deploy
-wrangler deploy
-
-# Initialize the database
-curl "https://your-custom-domain.com/init-db"
-```
-
-### **Step 6: Configure Custom Domain**
+### **Step 5: Configure Custom Domain**
 
 #### **DNS Configuration:**
 
@@ -236,8 +227,19 @@ curl "https://your-custom-domain.com/init-db"
 
 1. **Workers & Pages** → **your-worker** → **Settings** → **Triggers**
 2. **Add Route**:
-   - **Route**: `training-status.your-company.com/*`
-   - **Zone**: `your-company.com`
+   - **Route**: `training-status.your-domain.com/*`
+   - **Zone**: `your-domain.com`
+
+### **Step 6: Deploy Worker**
+
+```bash
+# Deploy
+wrangler deploy
+
+# Initialize the database (requires Cloudflare Access authentication)
+# Access the /init-db endpoint through your browser after authenticating via Access:
+# https://training-status.your-domain.com/init-db
+```
 
 ### **Step 7: Configure Cloudflare Access Application**
 
@@ -247,16 +249,17 @@ curl "https://your-custom-domain.com/init-db"
    - **Application name**: `Training Status Admin`
    - **Session Duration**: `24 hours`
 
-4. **Public Hostnames** (Add two entries):
-   - **Entry 1**: Host: `training-status.your-company.com`, Path: `/admin*`
-   - **Entry 2**: Host: `training-status.your-company.com`, Path: `/api/*`
+4. **Public Hostnames** (Add three entries for simplified configuration):
+   - **Entry 1**: Host: `training-status.your-domain.com`, Path: `/admin*` (covers /admin and admin interface)
+   - **Entry 2**: Host: `training-status.your-domain.com`, Path: `/api/*` (covers all API endpoints)
+   - **Entry 3**: Host: `training-status.your-domain.com`, Path: `/init-db` (for database initialization)
 
 5. **Access Policy**:
    - **Policy name**: `Training Administrators`
    - **Action**: `Allow`
    - **Configure rules** (examples):
-     - `Email: admin@your-company.com`
-     - `Emails ending in: @your-company.com`
+     - `Email: admin@your-domain.com`
+     - `Emails ending in: @your-domain.com`
      - `Groups: TrainingAdmins`
 
 6. **Get Application Audience ID**:
@@ -268,13 +271,13 @@ curl "https://your-custom-domain.com/init-db"
 1. **Zero Trust Dashboard** → **Access** → **Applications**
 2. **Select your protected application** (the one requiring training)
 3. **Edit Policy** → **Add External Evaluation Rule**:
-   - **Evaluate URL**: `https://your-custom-domain.com` _(remove trailing "/" if present)_
-   - **Keys URL**: `https://your-custom-domain.com/keys` _(remove trailing "/" if present)_
+   - **Evaluate URL**: `https://training-status.your-domain.com` _(remove trailing "/" if present)_
+   - **Keys URL**: `https://training-status.your-domain.com/keys` _(remove trailing "/" if present)_
 
 #### **Important: URL Format**
 
-- ✅ **Correct**: `https://your-custom-domain.com`
-- ❌ **Incorrect**: `https://your-custom-domain.com/`
+- ✅ **Correct**: `https://training-status.your-domain.com`
+- ❌ **Incorrect**: `https://training-status.your-domain.com/`
 - **Note**: Cloudflare Access External Evaluation requires URLs without trailing slashes to function properly
 
 ---
@@ -283,8 +286,8 @@ curl "https://your-custom-domain.com/init-db"
 
 ### **Accessing the Admin Interface**
 
-```
-https://training-status.your-company.com/admin
+```bash
+https://training-status.your-domain.com/admin
 ```
 
 - **Authentication**: Cloudflare Access (your corporate SSO)
@@ -311,12 +314,12 @@ All API endpoints are protected by Cloudflare Access:
 
 ```bash
 # Sync users (authenticated via Access)
-curl -X POST https://training-status.your-company.com/api/okta/sync
+curl -X POST https://training-status.your-domain.com/api/okta/sync
 
 # Update training status (authenticated via Access)
-curl -X POST https://training-status.your-company.com/api/update-training \
+curl -X POST https://training-status.your-domain.com/api/update-training \
   -H "Content-Type: application/json" \
-  -d '{"email": "user@company.com", "status": "completed"}'
+  -d '{"email": "user@domain.com", "status": "completed"}'
 ```
 
 ---
@@ -487,6 +490,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **🎉 Ready to deploy enterprise-grade training-based access control?** This production-ready solution integrates seamlessly with your existing Cloudflare Zero Trust infrastructure to enforce security training compliance across your organization!
 
-**🔗 Custom Domain Access**: `https://training-status.your-company.com/admin`
+**🔗 Custom Domain Access**: `https://training-status.your-domain.com/admin`
 **🔐 Secure by Design**: Protected by Cloudflare Access with full SSO integration
 **🚀 Enterprise Ready**: Scalable, auditable, and compliant with security best practices
