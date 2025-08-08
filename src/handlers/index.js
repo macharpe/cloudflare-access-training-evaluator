@@ -139,7 +139,7 @@ export async function handleExternalEvaluationRequest(env, request) {
             <h3>Available Endpoints:</h3>
             <div class="endpoint">GET /keys - Public key endpoint for Cloudflare Access</div>
             <div class="endpoint">POST / - External evaluation endpoint (used by Access)</div>
-            <div class="endpoint">GET /admin?key=YOUR_KEY - Training management dashboard</div>
+            <div class="endpoint">GET /admin - Training management dashboard (Access protected)</div>
         </div>
         
         <div class="note">
