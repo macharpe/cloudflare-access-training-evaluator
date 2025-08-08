@@ -3,40 +3,6 @@
  */
 
 /**
- * Check if the request is authenticated for admin access
- * @param {Request} request - HTTP request
- * @param {*} env - Environment bindings
- * @returns {boolean} Whether the request is authenticated
- */
-export function isAdminAuthenticated(request, env) {
-  if (!env.ADMIN_API_KEY) {
-    console.warn(
-      'ADMIN_API_KEY not configured - admin endpoints are unprotected!',
-    )
-    return true // Allow access if no key is configured (for development)
-  }
-
-  const url = new URL(request.url)
-  const queryKey = url.searchParams.get('key')
-  const authHeader = request.headers.get('Authorization')
-
-  // Check query parameter: ?key=your-secret-key
-  if (queryKey && queryKey === env.ADMIN_API_KEY) {
-    return true
-  }
-
-  // Check Authorization header: Bearer your-secret-key
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7)
-    if (token === env.ADMIN_API_KEY) {
-      return true
-    }
-  }
-
-  return false
-}
-
-/**
  * Create an unauthorized response
  * @returns {Response} 401 Unauthorized response
  */
@@ -45,7 +11,7 @@ export function createUnauthorizedResponse() {
     JSON.stringify({
       error: 'Unauthorized',
       message:
-        'Admin access required. Provide API key via ?key=your-key or Authorization: Bearer your-key header.',
+        'Admin access required. This endpoint is protected by Cloudflare Access authentication.',
     }),
     {
       status: 401,
@@ -112,11 +78,7 @@ export function createUnauthorizedHtmlResponse() {
     <div class="container">
         <div class="header">🔒</div>
         <h1>Access Denied</h1>
-        <p>This admin interface requires authentication. Please provide your API key.</p>
-        
-        <div class="code">
-            Access via: /admin?key=your-secret-key
-        </div>
+        <p>This admin interface is protected by Cloudflare Access authentication. Please ensure you are logged in through your SSO provider.</p>
         
         <p>Contact your administrator if you need access to the training management system.</p>
     </div>

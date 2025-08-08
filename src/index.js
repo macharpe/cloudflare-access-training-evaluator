@@ -10,14 +10,13 @@ import {
   handleOktaUsers,
 } from './handlers/sync.js'
 import {
-  isAdminAuthenticated,
   createUnauthorizedResponse,
   createUnauthorizedHtmlResponse,
 } from './auth/admin.js'
-import { isAccessAuthenticated, shouldUseApiKeyAuth } from './auth/access.js'
+import { isAccessAuthenticated } from './auth/access.js'
 
 /**
- * Unified admin request handler with hybrid authentication
+ * Unified admin request handler with Cloudflare Access authentication
  * @param {Request} request - HTTP request
  * @param {*} env - Environment bindings
  * @param {Function} handler - Handler function to execute if authenticated
@@ -30,29 +29,19 @@ async function handleAdminRequest(
   handler,
   isWebInterface = false,
 ) {
-  // Determine authentication method
-  if (shouldUseApiKeyAuth(request)) {
-    // Use API key authentication (fallback mode)
-    if (!isAdminAuthenticated(request, env)) {
-      return isWebInterface
-        ? createUnauthorizedHtmlResponse()
-        : createUnauthorizedResponse()
+  // Use Cloudflare Access authentication only
+  const accessClaims = await isAccessAuthenticated(request, env)
+  if (!accessClaims) {
+    // Not authenticated via Access
+    if (isWebInterface) {
+      return createUnauthorizedHtmlResponse()
+    } else {
+      return createUnauthorizedResponse()
     }
-    console.log('Admin access via API key (fallback mode)')
-  } else {
-    // Use Cloudflare Access authentication
-    const accessClaims = await isAccessAuthenticated(request, env)
-    if (!accessClaims) {
-      // Not authenticated via Access
-      if (isWebInterface) {
-        return createUnauthorizedHtmlResponse()
-      } else {
-        return createUnauthorizedResponse()
-      }
-    }
-    console.log(`Admin access via Cloudflare Access: ${accessClaims.email}`)
   }
-
+  
+  console.log(`Admin access via Cloudflare Access: ${accessClaims.email}`)
+  
   // Execute the handler
   return await handler()
 }
@@ -67,13 +56,15 @@ export default {
     if (url.pathname.endsWith('/keys')) {
       return await handleKeysRequest(env)
     } else if (url.pathname.endsWith('/init-db')) {
-      // Database initialization - requires authentication for security
-      if (!isAdminAuthenticated(request, env)) {
-        return createUnauthorizedResponse()
-      }
-      return await handleDatabaseInitRequest(env)
+      // Database initialization - requires Cloudflare Access authentication
+      return await handleAdminRequest(
+        request,
+        env,
+        () => handleDatabaseInitRequest(env),
+        false,
+      )
     } else if (url.pathname === '/admin' || url.pathname === '/admin/') {
-      // Admin web interface - hybrid authentication
+      // Admin web interface - Cloudflare Access authentication
       return await handleAdminRequest(
         request,
         env,
@@ -84,7 +75,7 @@ export default {
       url.pathname === '/api/update-training' &&
       request.method === 'POST'
     ) {
-      // Admin API - hybrid authentication
+      // Admin API - Cloudflare Access authentication
       return await handleAdminRequest(
         request,
         env,
@@ -92,7 +83,7 @@ export default {
         false,
       )
     } else if (url.pathname === '/api/okta/sync' && request.method === 'POST') {
-      // Admin API - hybrid authentication
+      // Admin API - Cloudflare Access authentication
       return await handleAdminRequest(
         request,
         env,
@@ -103,7 +94,7 @@ export default {
       url.pathname === '/api/okta/groups' &&
       request.method === 'GET'
     ) {
-      // Admin API - hybrid authentication
+      // Admin API - Cloudflare Access authentication
       return await handleAdminRequest(
         request,
         env,
@@ -111,7 +102,7 @@ export default {
         false,
       )
     } else if (url.pathname === '/api/okta/users' && request.method === 'GET') {
-      // Admin API - hybrid authentication
+      // Admin API - Cloudflare Access authentication
       return await handleAdminRequest(
         request,
         env,
