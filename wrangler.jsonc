@@ -10,7 +10,7 @@
   // Create with: wrangler kv:namespace create "KV"
   "kv_namespaces": [
     {
-      "binding": "KV",
+      "binding": "KEY_STORAGE",
       "id": "47a5e5e1ae424e609fc579ea01d58728"
     }
   ],

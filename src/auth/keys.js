@@ -35,7 +35,7 @@ export async function generateKeys(env) {
     const publicKey = await crypto.subtle.exportKey('jwk', keypair.publicKey)
     const privateKey = await crypto.subtle.exportKey('jwk', keypair.privateKey)
     const kid = await generateKID(JSON.stringify(publicKey))
-    await env.KV.put(
+    await env.KEY_STORAGE.put(
       KV_SIGNING_KEY,
       JSON.stringify({ public: publicKey, private: privateKey, kid: kid }),
     )
@@ -53,7 +53,7 @@ export async function generateKeys(env) {
  */
 export async function loadPublicKey(env) {
   // if the JWK values are already in KV then just return that
-  const key = await env.KV.get(KV_SIGNING_KEY, 'json')
+  const key = await env.KEY_STORAGE.get(KV_SIGNING_KEY, 'json')
   if (key) {
     return { kid: key.kid, ...key.public }
   }
