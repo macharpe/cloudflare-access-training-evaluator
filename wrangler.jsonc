@@ -7,11 +7,11 @@
 
   // KV Storage for RSA key pairs (automatically generated)
   // IMPORTANT: Replace with your own KV namespace ID when cloning this repository
-  // Create with: wrangler kv:namespace create "KV"
+  // Create with: wrangler kv:namespace create "external-auth-keys"
   "kv_namespaces": [
     {
       "binding": "KEY_STORAGE",
-      "id": "47a5e5e1ae424e609fc579ea01d58728"
+      "id": "1653d25211e2409a8ac19aff95ac4353"
     }
   ],
 
