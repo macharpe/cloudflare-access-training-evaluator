@@ -249,10 +249,11 @@ wrangler deploy
    - **Application name**: `Training Status Admin`
    - **Session Duration**: `24 hours`
 
-4. **Public Hostnames** (Add three entries for simplified configuration):
-   - **Entry 1**: Host: `training-status.your-domain.com`, Path: `/admin*` (covers /admin and admin interface)
-   - **Entry 2**: Host: `training-status.your-domain.com`, Path: `/api/*` (covers all API endpoints)
-   - **Entry 3**: Host: `training-status.your-domain.com`, Path: `/init-db` (for database initialization)
+4. **Public Hostnames** (Add four entries for simplified configuration):
+   - **Entry 1**: Host: `training-status.your-domain.com`, Path: `/admin` (for app launcher tile)
+   - **Entry 2**: Host: `training-status.your-domain.com`, Path: `/admin*` (covers /admin and admin interface)
+   - **Entry 3**: Host: `training-status.your-domain.com`, Path: `/api/*` (covers all API endpoints)
+   - **Entry 4**: Host: `training-status.your-domain.com`, Path: `/init-db` (for database initialization)
 
 5. **Access Policy**:
    - **Policy name**: `Training Administrators`
@@ -459,7 +460,7 @@ cd cloudflare-access-training-evaluator
 npm install
 
 # Configure infrastructure
-wrangler kv:namespace create "KV"
+wrangler kv:namespace create "external-auth-keys"
 wrangler d1 create training-completion-status-db
 
 # Update wrangler.jsonc with your actual IDs from above commands
