@@ -15,7 +15,7 @@ export async function externalEvaluation(claims, env) {
   const trainingStatus = await getUserTrainingStatus(env, username)
 
   if (!trainingStatus) {
-    console.log(`User ${username} not found in training database`)
+    console.log('User not found in training database:', username)
     return false
   }
 
