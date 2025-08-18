@@ -104,10 +104,11 @@ graph TD
 
 ### **🔄 Enterprise Identity Integration**
 
-- **Okta Synchronization**: Pull users directly from your Okta instance
+- **Two-Way Okta Synchronization**: Bidirectional sync that adds, updates, and removes users
 - **User Details**: Automatically sync first names and email addresses
 - **Group Support**: Sync specific user groups for targeted training programs
 - **Real-time Updates**: Keep user information synchronized with identity provider
+- **Automatic Cleanup**: Removes users from database when deleted from Okta
 
 ---
 
@@ -122,13 +123,13 @@ graph TD
 
 ### **Protected Admin Endpoints** (Cloudflare Access Authentication)
 
-| Endpoint                            | Method | Description                       | Purpose                                    |
-| ----------------------------------- | ------ | --------------------------------- | ------------------------------------------ |
-| `custom-domain/admin`               | GET    | **Training management dashboard** | Secure web interface for administrators    |
-| `custom-domain/api/update-training` | POST   | **Update user training status**   | Change training completion status          |
-| `custom-domain/api/okta/sync`       | POST   | **Sync users from Okta**          | Import/update users from identity provider |
-| `custom-domain/api/okta/users`      | GET    | **List Okta users**               | View available users before syncing        |
-| `custom-domain/api/okta/groups`     | GET    | **List Okta groups**              | Find group IDs for targeted syncing        |
+| Endpoint                            | Method | Description                       | Purpose                                              |
+| ----------------------------------- | ------ | --------------------------------- | ---------------------------------------------------- |
+| `custom-domain/admin`               | GET    | **Training management dashboard** | Secure web interface for administrators              |
+| `custom-domain/api/update-training` | POST   | **Update user training status**   | Change training completion status                    |
+| `custom-domain/api/okta/sync`       | POST   | **Two-way sync users from Okta**  | Add, update, and remove users from identity provider |
+| `custom-domain/api/okta/users`      | GET    | **List Okta users**               | View available users before syncing                  |
+| `custom-domain/api/okta/groups`     | GET    | **List Okta groups**              | Find group IDs for targeted syncing                  |
 
 ---
 
@@ -306,8 +307,9 @@ https://training-status.your-domain.com/admin
 
 - **View Users**: See all synced users with training status
 - **Update Status**: Use dropdown menus to change training completion
-- **Sync Users**: One-click synchronization from Okta
+- **Two-Way Sync**: One-click bidirectional synchronization from Okta (adds, updates, and removes users)
 - **Monitor Access**: View which users have access based on training
+- **Automatic Cleanup**: Users removed from Okta are automatically removed from the database
 
 ### **API Management**
 
