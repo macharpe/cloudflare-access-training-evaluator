@@ -20,7 +20,7 @@ export async function isAccessAuthenticated(request, env) {
           key.toLowerCase().startsWith('cf-access') ||
           key.toLowerCase().includes('jwt')
         ) {
-          console.log(`  ${key}: ${value}`)
+          console.log('  ', key, ':', value)
         }
       }
     }
@@ -117,7 +117,7 @@ export async function isAccessAuthenticated(request, env) {
       return null
     }
 
-    if (env.DEBUG) console.log(`Access authenticated user: ${claims.email}`)
+    if (env.DEBUG) console.log('Access authenticated user:', claims.email)
     return claims
   } catch (error) {
     console.error('Error validating Access JWT:', error)
