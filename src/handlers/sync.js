@@ -59,7 +59,7 @@ export async function handleOktaSync(env, request) {
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Sync completed. Added: ${syncResults.added}, Skipped: ${syncResults.skipped}, Errors: ${syncResults.errors.length}`,
+        message: `Sync completed. Added: ${syncResults.added}, Updated: ${syncResults.updated}, Removed: ${syncResults.removed}, Errors: ${syncResults.errors.length}`,
         results: syncResults,
         oktaUsers: oktaUsers.length,
       }),

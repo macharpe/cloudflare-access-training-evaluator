@@ -102,7 +102,7 @@ export async function fetchOktaGroupUsers(env, groupId) {
 }
 
 /**
- * Sync Okta users to the training database
+ * Sync Okta users to the training database with two-way sync (add, update, and remove)
  * @param {*} env - Environment bindings
  * @param {Array} oktaUsers - Users from Okta
  * @returns {Object} Sync results
@@ -111,52 +111,93 @@ export async function syncUsersToDatabase(env, oktaUsers) {
   const results = {
     added: 0,
     updated: 0,
+    removed: 0,
     skipped: 0,
     errors: [],
   }
 
-  for (const user of oktaUsers) {
-    try {
-      // Check if user already exists
-      const existingUser = await env.DB.prepare(
-        'SELECT id, username FROM users WHERE username = ?',
-      )
-        .bind(user.username)
-        .first()
+  try {
+    // Get all existing users from database
+    const existingUsers = await env.DB.prepare(
+      'SELECT username FROM users',
+    ).all()
 
-      if (existingUser) {
-        // User exists, update first name and email if missing
-        await env.DB.prepare(
-          `
-          UPDATE users SET first_name = ?, primary_email = ?, updated_at = CURRENT_TIMESTAMP 
-          WHERE username = ?
-        `,
-        )
-          .bind(user.firstName, user.email, user.username)
-          .run()
+    const existingUsernames = new Set(
+      existingUsers.results.map((user) => user.username),
+    )
+    const oktaUsernames = new Set(oktaUsers.map((user) => user.username))
 
-        results.updated++
-        console.log(`Updated user details for: ${user.username}`)
-      } else {
-        // Add new user with default "not started" training status and user details
-        await env.DB.prepare(
-          `
-          INSERT INTO users (username, first_name, primary_email, training_status, created_at, updated_at) 
-          VALUES (?, ?, ?, 'not started', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `,
+    // Process Okta users (add/update)
+    for (const user of oktaUsers) {
+      try {
+        // Check if user already exists
+        const existingUser = await env.DB.prepare(
+          'SELECT id, username FROM users WHERE username = ?',
         )
-          .bind(user.username, user.firstName, user.email)
-          .run()
+          .bind(user.username)
+          .first()
 
-        results.added++
-        console.log(
-          `Added new user: ${user.username} (${user.firstName} - ${user.email})`,
-        )
+        if (existingUser) {
+          // User exists, update first name and email
+          await env.DB.prepare(
+            `
+            UPDATE users SET first_name = ?, primary_email = ?, updated_at = CURRENT_TIMESTAMP 
+            WHERE username = ?
+          `,
+          )
+            .bind(user.firstName, user.email, user.username)
+            .run()
+
+          results.updated++
+          console.log(`Updated user details for: ${user.username}`)
+        } else {
+          // Add new user with default "not started" training status and user details
+          await env.DB.prepare(
+            `
+            INSERT INTO users (username, first_name, primary_email, training_status, created_at, updated_at) 
+            VALUES (?, ?, ?, 'not started', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `,
+          )
+            .bind(user.username, user.firstName, user.email)
+            .run()
+
+          results.added++
+          console.log(
+            `Added new user: ${user.username} (${user.firstName} - ${user.email})`,
+          )
+        }
+      } catch (error) {
+        console.error(`Error syncing user ${user.username}:`, error)
+        results.errors.push(`${user.username}: ${error.message}`)
       }
-    } catch (error) {
-      console.error(`Error syncing user ${user.username}:`, error)
-      results.errors.push(`${user.username}: ${error.message}`)
     }
+
+    // Remove users that no longer exist in Okta
+    const usersToRemove = [...existingUsernames].filter(
+      (username) => !oktaUsernames.has(username),
+    )
+
+    for (const username of usersToRemove) {
+      try {
+        const deleteResult = await env.DB.prepare(
+          'DELETE FROM users WHERE username = ?',
+        )
+          .bind(username)
+          .run()
+
+        const changes = deleteResult.changes || deleteResult.meta?.changes || 0
+        if (changes > 0) {
+          results.removed++
+          console.log(`Removed user no longer in Okta: ${username}`)
+        }
+      } catch (error) {
+        console.error(`Error removing user ${username}:`, error)
+        results.errors.push(`${username} (removal): ${error.message}`)
+      }
+    }
+  } catch (error) {
+    console.error('Error during sync process:', error)
+    results.errors.push(`Sync process: ${error.message}`)
   }
 
   return results

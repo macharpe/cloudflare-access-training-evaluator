@@ -39,9 +39,9 @@ async function handleAdminRequest(
       return createUnauthorizedResponse()
     }
   }
-  
+
   console.log(`Admin access via Cloudflare Access: ${accessClaims.email}`)
-  
+
   // Execute the handler
   return await handler()
 }
