@@ -33,7 +33,7 @@ export async function handleOktaSync(env, request) {
 
     let oktaUsers
     if (groupId) {
-      console.log(`Syncing users from Okta group: ${groupId}`)
+      console.log('Syncing users from Okta group:', groupId)
       oktaUsers = await fetchOktaGroupUsers(env, groupId)
     } else {
       console.log('Syncing all users from Okta')

@@ -40,7 +40,7 @@ async function handleAdminRequest(
     }
   }
 
-  console.log(`Admin access via Cloudflare Access: ${accessClaims.email}`)
+  console.log('Admin access via Cloudflare Access:', accessClaims.email)
 
   // Execute the handler
   return await handler()

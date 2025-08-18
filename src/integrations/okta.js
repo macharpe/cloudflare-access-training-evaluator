@@ -83,7 +83,7 @@ export async function fetchOktaGroupUsers(env, groupId) {
     }
 
     const users = await response.json()
-    console.log(`Fetched ${users.length} users from Okta group ${groupId}`)
+    console.log('Fetched', users.length, 'users from Okta group:', groupId)
 
     return users.map((user) => ({
       id: user.id,
@@ -149,7 +149,7 @@ export async function syncUsersToDatabase(env, oktaUsers) {
             .run()
 
           results.updated++
-          console.log(`Updated user details for: ${user.username}`)
+          console.log('Updated user details for:', user.username)
         } else {
           // Add new user with default "not started" training status and user details
           await env.DB.prepare(
@@ -167,7 +167,7 @@ export async function syncUsersToDatabase(env, oktaUsers) {
           )
         }
       } catch (error) {
-        console.error(`Error syncing user ${user.username}:`, error)
+        console.error('Error syncing user:', user.username, error)
         results.errors.push(`${user.username}: ${error.message}`)
       }
     }
@@ -188,10 +188,10 @@ export async function syncUsersToDatabase(env, oktaUsers) {
         const changes = deleteResult.changes || deleteResult.meta?.changes || 0
         if (changes > 0) {
           results.removed++
-          console.log(`Removed user no longer in Okta: ${username}`)
+          console.log('Removed user no longer in Okta:', username)
         }
       } catch (error) {
-        console.error(`Error removing user ${username}:`, error)
+        console.error('Error removing user:', username, error)
         results.errors.push(`${username} (removal): ${error.message}`)
       }
     }
