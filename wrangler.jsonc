@@ -1,7 +1,9 @@
 {
   // Cloudflare Access External Evaluation Worker with Training Certification System
   "name": "cloudflare-access-training-evaluator",
-  "workers_dev": false,
+  // Security: Disable public endpoints
+  "workers_dev": false,       // Disables *.workers.dev URLs
+  "preview_urls": false,      // Disables version preview URLs
   "compatibility_date": "2024-08-06",
   "main": "src/index.js",
 
