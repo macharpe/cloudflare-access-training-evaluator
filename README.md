@@ -58,7 +58,47 @@ graph TD
     M --> E
 ```
 
-### **Security Flow**
+### **Authentication Workflow with Dual Key Pairs**
+
+This worker implements a sophisticated dual key pair authentication system for secure bidirectional JWT communication with Cloudflare Access:
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Access as Cloudflare Access
+    participant Worker as External Eval Worker
+    participant KV as Workers KV
+    participant D1 as D1 Database
+
+    Note over Access, Worker: Key Pair 1: Cloudflare Access Keys
+    Note over Worker, KV: Key Pair 2: Worker RSA Keys
+
+    User->>Access: 1. Access protected resource
+    Access->>Access: 2. Generate JWT with Access private key
+    Access->>Worker: 3. POST / (JWT token)
+
+    Worker->>Access: 4. Fetch Access public keys
+    Worker->>Worker: 5. Verify JWT using Access public key
+
+    Worker->>D1: 6. Query user training status
+    D1-->>Worker: 7. Return training data
+
+    Worker->>Worker: 8. Execute authorization logic
+    Worker->>KV: 9. Retrieve Worker private key
+    Worker->>Worker: 10. Sign response JWT with Worker private key
+
+    Worker-->>Access: 11. Return signed JWT response
+    Access->>KV: 12. Fetch Worker public key (/keys endpoint)
+    Access->>Access: 13. Verify Worker response using Worker public key
+    Access-->>User: 14. Allow/Deny access based on training status
+```
+
+#### **Key Management Strategy**
+
+- **Cloudflare Access Keys**: Access signs outbound JWTs to Worker, Worker verifies using Access public keys
+- **Worker RSA Keys**: Worker signs response JWTs back to Access, Access verifies using Worker public keys from `/keys` endpoint
+
+### **Security Flow Summary**
 
 1. **User Authentication**: User authenticates via identity provider (Google, Okta, etc.)
 2. **Access Request**: User attempts to access a protected application
