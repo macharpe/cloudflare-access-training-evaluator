@@ -109,16 +109,32 @@ async function fetchAccessPublicKey(env, kid) {
 }
 
 /**
- * Load the signing key from KV
+ * Load the signing key from Workers Secrets and KV
  * @param {*} env - Environment bindings
  * @returns {Object} Key ID and private key
  */
 async function loadSigningKey(env) {
-  const keyset = await env.KEY_STORAGE.get('external_auth_keys', 'json')
-  if (keyset) {
+  // Get kid from KV (public key metadata)
+  const publicKeyset = await env.KEY_STORAGE.get('external_auth_keys', 'json')
+  if (!publicKeyset) {
+    console.log('Key set has not been generated. Call /keys first.')
+    throw new Error('cannot find signing key')
+  }
+
+  // Get private key from Workers Secret
+  const privateKeyJWK = env.RSA_PRIVATE_KEY
+  if (!privateKeyJWK) {
+    console.log(
+      'Private key secret not configured. Run: wrangler secret put RSA_PRIVATE_KEY',
+    )
+    throw new Error('RSA_PRIVATE_KEY secret not set')
+  }
+
+  try {
+    const privateKeyObject = JSON.parse(privateKeyJWK)
     const signingKey = await crypto.subtle.importKey(
       'jwk',
-      keyset.private,
+      privateKeyObject,
       {
         name: 'RSASSA-PKCS1-v1_5',
         hash: 'SHA-256',
@@ -126,9 +142,9 @@ async function loadSigningKey(env) {
       false,
       ['sign'],
     )
-    return { kid: keyset.kid, privateKey: signingKey }
+    return { kid: publicKeyset.kid, privateKey: signingKey }
+  } catch (e) {
+    console.log('Failed to parse or import private key from secret:', e)
+    throw new Error('invalid RSA_PRIVATE_KEY secret format')
   }
-
-  console.log('Key set has not been generated. Call /keys first.')
-  throw new Error('cannot find signing key')
 }

@@ -68,10 +68,13 @@ sequenceDiagram
     participant Access as Cloudflare Access
     participant Worker as External Eval Worker
     participant KV as Workers KV
+    participant Secrets as Workers Secrets
     participant D1 as D1 Database
 
     Note over Access, Worker: Key Pair 1: Cloudflare Access Keys
-    Note over Worker, KV: Key Pair 2: Worker RSA Keys
+    Note over Worker, KV: Key Pair 2: Worker RSA Keys (Secure Split)
+    Note over KV: Public Key + KID
+    Note over Secrets: Private Key (Encrypted)
 
     User->>Access: 1. Access protected resource
     Access->>Access: 2. Generate JWT with Access private key
@@ -84,19 +87,22 @@ sequenceDiagram
     D1-->>Worker: 7. Return training data
 
     Worker->>Worker: 8. Execute authorization logic
-    Worker->>KV: 9. Retrieve Worker private key
-    Worker->>Worker: 10. Sign response JWT with Worker private key
+    Worker->>KV: 9. Retrieve Worker's key ID
+    Worker->>Secrets: 10. Retrieve Worker's private key (secure)
+    Worker->>Worker: 11. Sign response JWT with Worker private key
 
-    Worker-->>Access: 11. Return signed JWT response
-    Access->>KV: 12. Fetch Worker public key (/keys endpoint)
-    Access->>Access: 13. Verify Worker response using Worker public key
-    Access-->>User: 14. Allow/Deny access based on training status
+    Worker-->>Access: 12. Return signed JWT response
+    Access->>KV: 13. Fetch Worker public key (/keys endpoint)
+    Access->>Access: 14. Verify Worker response using Worker public key
+    Access-->>User: 15. Allow/Deny access based on training status
 ```
 
 #### **Key Management Strategy**
 
 - **Cloudflare Access Keys**: Access signs outbound JWTs to Worker, Worker verifies using Access public keys
-- **Worker RSA Keys**: Worker signs response JWTs back to Access, Access verifies using Worker public keys from `/keys` endpoint
+- **Worker RSA Keys**: Securely split between storage systems for enhanced security:
+  - **Public Key + KID**: Stored in Workers KV for Access to verify signatures via `/keys` endpoint
+  - **Private Key**: Stored encrypted in Workers Secrets, never exposed in KV or logs
 
 ### **Security Flow Summary**
 
@@ -130,7 +136,7 @@ sequenceDiagram
 - **Cloudflare Access Authentication**: All admin endpoints protected by Zero Trust authentication
 - **Custom Domain**: Professional branded URL for admin access
 - **JWT Token Validation**: Cryptographic verification of all Access tokens
-- **RSA Key Management**: Automatic key generation and secure storage
+- **RSA Key Management**: Automatic key generation with secure split storage (public keys in KV, private keys in encrypted Workers Secrets)
 - **Signed Responses**: All responses to Access are cryptographically signed
 - **Single Sign-On Integration**: Seamless authentication through your identity provider
 
@@ -245,6 +251,9 @@ The `wrangler.jsonc` file contains all the configuration for your Worker includi
 **Secrets**:
 
 ```bash
+# Required: Worker's RSA private key for JWT signing (see Step 6A for initial setup)
+wrangler secret put RSA_PRIVATE_KEY   # RSA private key in JWK format
+
 # Required: Okta integration (if using)
 wrangler secret put OKTA_API_TOKEN   # Your Okta API token from above
 
@@ -271,7 +280,49 @@ wrangler secret put ACCESS_APP_AUD   # Your Access application audience ID
    - **Route**: `training-status.your-domain.com/*`
    - **Zone**: `your-domain.com`
 
-### **Step 6: Deploy Worker**
+### **Step 6: RSA Key Setup**
+
+#### **Step 6A: Initial RSA Key Generation**
+
+For new deployments, you'll need to generate RSA keys. The worker will generate keys automatically on first `/keys` endpoint call, but you need to manually configure the private key as a secret.
+
+```bash
+# 1. Deploy worker (without RSA_PRIVATE_KEY secret initially)
+wrangler deploy
+
+# 2. Generate keys by calling the /keys endpoint (this will show the private key in logs)
+# You can use curl or visit in browser (protected by Access if configured)
+curl https://training-status.your-domain.com/keys
+
+# 3. Check the worker logs to get the private key JWK
+wrangler tail --format pretty
+
+# 4. Copy the private key JSON object from logs and set it as secret
+wrangler secret put RSA_PRIVATE_KEY
+# Paste the private key JWK JSON when prompted
+
+# 5. Redeploy to use the secret
+wrangler deploy
+```
+
+#### **Step 6B: Migrating Existing Keys (if upgrading)**
+
+If you have an existing worker with keys stored in KV, extract the private key:
+
+```bash
+# 1. Get current private key from KV
+wrangler kv:key get "external_auth_keys" --namespace-id YOUR_KV_NAMESPACE_ID
+
+# 2. Copy the "private" key object from the JSON response
+# 3. Set it as a Workers Secret
+wrangler secret put RSA_PRIVATE_KEY
+# Paste only the "private" key JSON object when prompted
+
+# 4. Deploy the updated worker
+wrangler deploy
+```
+
+### **Step 7: Deploy Worker**
 
 ```bash
 # Deploy
@@ -282,7 +333,7 @@ wrangler deploy
 # https://training-status.your-domain.com/init-db
 ```
 
-### **Step 7: Configure Cloudflare Access Application**
+### **Step 8: Configure Cloudflare Access Application**
 
 1. **Zero Trust Dashboard** → **Access** → **Applications**
 2. **Add Application** → **Self-hosted**
@@ -308,7 +359,7 @@ wrangler deploy
    - After creating, note the **Application Audience ID**
    - Set it as secret: `wrangler secret put ACCESS_APP_AUD`
 
-### **Step 8: Configure External Evaluation**
+### **Step 9: Configure External Evaluation**
 
 1. **Zero Trust Dashboard** → **Access** → **Applications**
 2. **Select your protected application** (the one requiring training)
@@ -449,10 +500,12 @@ wrangler d1 execute training-completion-status-db --remote \
 
 ### **Security Checklist**
 
+- [ ] Verify RSA private key is stored only in Workers Secrets, not in KV
 - [ ] Configure appropriate Cloudflare Access policies for admin interface
-- [ ] Set up regular rotation of Okta API tokens and secrets
+- [ ] Set up regular rotation of RSA keys, Okta API tokens and secrets
 - [ ] Disable debug logging (`DEBUG: false` in wrangler.jsonc)
 - [ ] Review and configure geographic access restrictions if needed
+- [ ] Clear any temporary private key data from logs after initial setup
 
 ### **Monitoring & Maintenance**
 
