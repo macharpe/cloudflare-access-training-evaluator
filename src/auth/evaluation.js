@@ -1,4 +1,5 @@
 import { getUserTrainingStatus } from '../database/training.js'
+import { extractUsername, sanitizeForLogging } from '../utils/validation.js'
 
 /**
  * External evaluation business logic for training certification
@@ -7,23 +8,39 @@ import { getUserTrainingStatus } from '../database/training.js'
  * @returns {boolean} Authorization decision
  */
 export async function externalEvaluation(claims, env) {
-  // Extract username from email (assumes format: username@domain.com)
-  const email = claims.identity.email
-  const username = email.split('@')[0].toLowerCase()
+  try {
+    // Validate claims structure
+    if (!claims || !claims.identity || !claims.identity.email) {
+      console.log('Invalid claims structure: missing email identity')
+      return false
+    }
 
-  // Get user training status from D1 database
-  const trainingStatus = await getUserTrainingStatus(env, username)
+    // Extract and validate username from email
+    const email = claims.identity.email
+    const username = extractUsername(email)
 
-  if (!trainingStatus) {
-    console.log('User not found in training database:', username)
+    // Get user training status from D1 database
+    const trainingStatus = await getUserTrainingStatus(env, username)
+
+    if (!trainingStatus) {
+      console.log(
+        `User not found in training database: ${sanitizeForLogging(username)}`,
+      )
+      return false
+    }
+
+    // Only allow access if training is completed
+    const hasAccess = trainingStatus === 'completed'
+
+    console.log(
+      `User ${sanitizeForLogging(username)} training status: ${sanitizeForLogging(trainingStatus)}, access granted: ${hasAccess}`,
+    )
+    return hasAccess
+  } catch (error) {
+    console.error(
+      'Error in external evaluation:',
+      sanitizeForLogging(error.message),
+    )
     return false
   }
-
-  // Only allow access if training is completed
-  const hasAccess = trainingStatus === 'completed'
-
-  console.log(
-    `User ${username} training status: ${trainingStatus}, access granted: ${hasAccess}`,
-  )
-  return hasAccess
 }
