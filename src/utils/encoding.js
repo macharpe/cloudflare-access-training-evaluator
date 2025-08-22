@@ -4,10 +4,15 @@
 export const base64url = {
   stringify: function (a) {
     let base64string = btoa(String.fromCharCode.apply(0, a))
-    return base64string
-      .replace(/=/g, '')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
+    return base64string.replace(
+      /[=+/]/g,
+      (char) =>
+        ({
+          '=': '',
+          '+': '-',
+          '/': '_',
+        })[char],
+    )
   },
   parse: function (s) {
     s = s.replace(/-/g, '+').replace(/_/g, '/').replace(/\s/g, '')

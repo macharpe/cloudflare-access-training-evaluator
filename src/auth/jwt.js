@@ -1,4 +1,5 @@
 import { base64url, asciiToUint8Array } from '../utils/encoding.js'
+import { cachedFetch, CACHE_CONFIG } from '../utils/cache.js'
 
 /**
  * Parse a JWT into its respective pieces. Does not do any validation other than form checking.
@@ -92,9 +93,38 @@ export async function signJWT(env, payload) {
  * @returns {CryptoKey} Access public key
  */
 async function fetchAccessPublicKey(env, kid) {
-  const resp = await fetch(`https://${env.TEAM_DOMAIN}/cdn-cgi/access/certs`)
+  // Validate TEAM_DOMAIN configuration
+  if (!env.TEAM_DOMAIN || !env.TEAM_DOMAIN.includes('.')) {
+    throw new Error('Invalid TEAM_DOMAIN configuration')
+  }
+
+  const cacheKey = `${CACHE_CONFIG.ACCESS_KEYS.key}_${env.TEAM_DOMAIN}`
+  const url = `https://${env.TEAM_DOMAIN}/cdn-cgi/access/certs`
+
+  // Use cached fetch for Access public keys
+  const resp = await cachedFetch(
+    url,
+    {},
+    cacheKey,
+    CACHE_CONFIG.ACCESS_KEYS.ttl,
+    env,
+  )
+
+  if (!resp.ok) {
+    throw new Error(
+      `Failed to fetch Access public keys: ${resp.status} ${resp.statusText}`,
+    )
+  }
+
   const keys = await resp.json()
-  const jwk = keys.keys.filter((key) => key.kid == kid)[0]
+
+  // Optimized: Use find() instead of filter()[0] for early termination
+  const jwk = keys.keys.find((key) => key.kid === kid)
+
+  if (!jwk) {
+    throw new Error(`Public key not found for kid: ${kid}`)
+  }
+
   const key = await crypto.subtle.importKey(
     'jwk',
     jwk,

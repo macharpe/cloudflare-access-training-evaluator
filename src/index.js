@@ -14,6 +14,12 @@ import {
   createUnauthorizedHtmlResponse,
 } from './auth/admin.js'
 import { isAccessAuthenticated } from './auth/access.js'
+import {
+  logRequest,
+  logAuth,
+  structuredLog,
+  LOG_LEVELS,
+} from './utils/logging.js'
 
 /**
  * Unified admin request handler with Cloudflare Access authentication
@@ -33,6 +39,7 @@ async function handleAdminRequest(
   const accessClaims = await isAccessAuthenticated(request, env)
   if (!accessClaims) {
     // Not authenticated via Access
+    logAuth(false, 'Cloudflare Access authentication failed', env)
     if (isWebInterface) {
       return createUnauthorizedHtmlResponse()
     } else {
@@ -40,10 +47,19 @@ async function handleAdminRequest(
     }
   }
 
-  console.log('Admin access via Cloudflare Access:', accessClaims.email)
+  logAuth(true, null, env)
+  structuredLog(
+    LOG_LEVELS.INFO,
+    'Admin access granted',
+    {
+      email: accessClaims.email,
+      userAgent: request.headers.get('user-agent') || 'unknown',
+    },
+    env,
+  )
 
   // Execute the handler
-  return await handler()
+  return handler()
 }
 
 /**
@@ -51,66 +67,112 @@ async function handleAdminRequest(
  */
 export default {
   async fetch(request, env, ctx) {
+    const startTime = Date.now()
     const url = new URL(request.url)
+    const endpoint = url.pathname
+    const method = request.method
 
-    if (url.pathname.endsWith('/keys')) {
-      return await handleKeysRequest(env)
-    } else if (url.pathname.endsWith('/init-db')) {
-      // Database initialization - requires Cloudflare Access authentication
-      return await handleAdminRequest(
-        request,
+    try {
+      let response
+
+      if (url.pathname.endsWith('/keys')) {
+        response = await handleKeysRequest(env)
+      } else if (url.pathname.endsWith('/init-db')) {
+        // Database initialization - requires Cloudflare Access authentication
+        response = await handleAdminRequest(
+          request,
+          env,
+          () => handleDatabaseInitRequest(env),
+          false,
+        )
+      } else if (url.pathname === '/admin' || url.pathname === '/admin/') {
+        // Admin web interface - Cloudflare Access authentication
+        response = await handleAdminRequest(
+          request,
+          env,
+          () => handleWebInterface(env),
+          true,
+        )
+      } else if (
+        url.pathname === '/api/update-training' &&
+        request.method === 'POST'
+      ) {
+        // Admin API - Cloudflare Access authentication
+        response = await handleAdminRequest(
+          request,
+          env,
+          () => handleUpdateTraining(env, request),
+          false,
+        )
+      } else if (
+        url.pathname === '/api/okta/sync' &&
+        request.method === 'POST'
+      ) {
+        // Admin API - Cloudflare Access authentication
+        response = await handleAdminRequest(
+          request,
+          env,
+          () => handleOktaSync(env, request),
+          false,
+        )
+      } else if (
+        url.pathname === '/api/okta/groups' &&
+        request.method === 'GET'
+      ) {
+        // Admin API - Cloudflare Access authentication
+        response = await handleAdminRequest(
+          request,
+          env,
+          () => handleOktaGroups(env),
+          false,
+        )
+      } else if (
+        url.pathname === '/api/okta/users' &&
+        request.method === 'GET'
+      ) {
+        // Admin API - Cloudflare Access authentication
+        response = await handleAdminRequest(
+          request,
+          env,
+          () => handleOktaUsers(env, request),
+          false,
+        )
+      } else {
+        response = await handleExternalEvaluationRequest(env, request)
+      }
+
+      // Log request metrics
+      const duration = Date.now() - startTime
+      logRequest(endpoint, method, response.status, duration, env)
+
+      return response
+    } catch (error) {
+      const duration = Date.now() - startTime
+      structuredLog(
+        LOG_LEVELS.ERROR,
+        'Unhandled request error',
+        {
+          endpoint,
+          method,
+          error: error.message,
+          duration,
+        },
         env,
-        () => handleDatabaseInitRequest(env),
-        false,
       )
-    } else if (url.pathname === '/admin' || url.pathname === '/admin/') {
-      // Admin web interface - Cloudflare Access authentication
-      return await handleAdminRequest(
-        request,
-        env,
-        () => handleWebInterface(env),
-        true,
+
+      logRequest(endpoint, method, 500, duration, env)
+
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Internal server error',
+          timestamp: new Date().toISOString(),
+        }),
+        {
+          status: 500,
+          headers: { 'content-type': 'application/json' },
+        },
       )
-    } else if (
-      url.pathname === '/api/update-training' &&
-      request.method === 'POST'
-    ) {
-      // Admin API - Cloudflare Access authentication
-      return await handleAdminRequest(
-        request,
-        env,
-        () => handleUpdateTraining(env, request),
-        false,
-      )
-    } else if (url.pathname === '/api/okta/sync' && request.method === 'POST') {
-      // Admin API - Cloudflare Access authentication
-      return await handleAdminRequest(
-        request,
-        env,
-        () => handleOktaSync(env, request),
-        false,
-      )
-    } else if (
-      url.pathname === '/api/okta/groups' &&
-      request.method === 'GET'
-    ) {
-      // Admin API - Cloudflare Access authentication
-      return await handleAdminRequest(
-        request,
-        env,
-        () => handleOktaGroups(env),
-        false,
-      )
-    } else if (url.pathname === '/api/okta/users' && request.method === 'GET') {
-      // Admin API - Cloudflare Access authentication
-      return await handleAdminRequest(
-        request,
-        env,
-        () => handleOktaUsers(env, request),
-        false,
-      )
-    } else {
-      return await handleExternalEvaluationRequest(env, request)
     }
   },
 }

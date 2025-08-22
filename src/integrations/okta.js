@@ -2,12 +2,23 @@
  * Okta API integration for user management
  */
 
+import {
+  isValidOktaDomain,
+  isValidGroupId,
+  extractUsername,
+  sanitizeForLogging,
+} from '../utils/validation.js'
+import { cachedFetch, CACHE_CONFIG } from '../utils/cache.js'
+import { logOkta, logPerformance } from '../utils/logging.js'
+
 /**
  * Fetch all users from Okta instance
  * @param {*} env - Environment bindings
  * @returns {Array} List of Okta users
  */
 export async function fetchOktaUsers(env) {
+  const startTime = Date.now()
+
   try {
     if (!env.OKTA_DOMAIN || !env.OKTA_API_TOKEN) {
       throw new Error(
@@ -15,15 +26,28 @@ export async function fetchOktaUsers(env) {
       )
     }
 
-    const response = await fetch(
-      `https://${env.OKTA_DOMAIN}/api/v1/users?limit=200`,
-      {
-        headers: {
-          Authorization: `SSWS ${env.OKTA_API_TOKEN}`,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
+    // Validate Okta domain
+    if (!isValidOktaDomain(env.OKTA_DOMAIN)) {
+      throw new Error('Invalid OKTA_DOMAIN format')
+    }
+
+    const cacheKey = `${CACHE_CONFIG.OKTA_USERS.key}_${env.OKTA_DOMAIN}`
+    const limit = env.OKTA_FETCH_LIMIT || 200
+    const url = `https://${env.OKTA_DOMAIN}/api/v1/users?limit=${limit}`
+    const options = {
+      headers: {
+        Authorization: `SSWS ${env.OKTA_API_TOKEN}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
       },
+    }
+
+    const response = await cachedFetch(
+      url,
+      options,
+      cacheKey,
+      CACHE_CONFIG.OKTA_USERS.ttl,
+      env,
     )
 
     if (!response.ok) {
@@ -33,20 +57,45 @@ export async function fetchOktaUsers(env) {
     }
 
     const users = await response.json()
-    console.log(`Fetched ${users.length} users from Okta`)
 
-    return users.map((user) => ({
-      id: user.id,
-      username: user.profile.login.split('@')[0].toLowerCase(), // Extract username from email
-      email: user.profile.login,
-      firstName: user.profile.firstName,
-      lastName: user.profile.lastName,
-      status: user.status, // ACTIVE, SUSPENDED, etc.
-      created: user.created,
-      lastLogin: user.lastLogin,
-    }))
+    const processedUsers = users
+      .map((user) => {
+        try {
+          return {
+            id: user.id,
+            username: extractUsername(user.profile.login), // Extract and validate username
+            email: user.profile.login,
+            firstName: user.profile.firstName || '',
+            lastName: user.profile.lastName || '',
+            status: user.status, // ACTIVE, SUSPENDED, etc.
+            created: user.created,
+            lastLogin: user.lastLogin,
+          }
+        } catch (error) {
+          console.error(
+            `Invalid user data for ${sanitizeForLogging(user.profile.login)}:`,
+            error.message,
+          )
+          return null
+        }
+      })
+      .filter((user) => user !== null)
+
+    logPerformance('fetchOktaUsers', startTime, env)
+    logOkta(
+      'fetchUsers',
+      true,
+      {
+        usersCount: processedUsers.length,
+        rawUsersCount: users.length,
+        cacheUsed: response.headers.get('x-cache') === 'HIT',
+      },
+      env,
+    )
+
+    return processedUsers
   } catch (error) {
-    console.error('Error fetching Okta users:', error)
+    logOkta('fetchUsers', false, { error: error.message }, env)
     throw error
   }
 }
@@ -63,6 +112,15 @@ export async function fetchOktaGroupUsers(env, groupId) {
       throw new Error(
         'Okta configuration missing: OKTA_DOMAIN and OKTA_API_TOKEN required',
       )
+    }
+
+    // Validate inputs
+    if (!isValidOktaDomain(env.OKTA_DOMAIN)) {
+      throw new Error('Invalid OKTA_DOMAIN format')
+    }
+
+    if (!isValidGroupId(groupId)) {
+      throw new Error('Invalid group ID format')
     }
 
     const response = await fetch(
@@ -85,16 +143,28 @@ export async function fetchOktaGroupUsers(env, groupId) {
     const users = await response.json()
     console.log('Fetched', users.length, 'users from Okta group:', groupId)
 
-    return users.map((user) => ({
-      id: user.id,
-      username: user.profile.login.split('@')[0].toLowerCase(),
-      email: user.profile.login,
-      firstName: user.profile.firstName,
-      lastName: user.profile.lastName,
-      status: user.status,
-      created: user.created,
-      lastLogin: user.lastLogin,
-    }))
+    return users
+      .map((user) => {
+        try {
+          return {
+            id: user.id,
+            username: extractUsername(user.profile.login),
+            email: user.profile.login,
+            firstName: user.profile.firstName || '',
+            lastName: user.profile.lastName || '',
+            status: user.status,
+            created: user.created,
+            lastLogin: user.lastLogin,
+          }
+        } catch (error) {
+          console.error(
+            `Invalid user data for ${sanitizeForLogging(user.profile.login)}:`,
+            error.message,
+          )
+          return null
+        }
+      })
+      .filter((user) => user !== null)
   } catch (error) {
     console.error('Error fetching Okta group users:', error)
     throw error
@@ -119,80 +189,108 @@ export async function syncUsersToDatabase(env, oktaUsers) {
   try {
     // Get all existing users from database
     const existingUsers = await env.DB.prepare(
-      'SELECT username FROM users',
+      'SELECT username, first_name, primary_email FROM users',
     ).all()
 
-    const existingUsernames = new Set(
-      existingUsers.results.map((user) => user.username),
-    )
+    const existingUserMap = new Map()
+    existingUsers.results.forEach((user) => {
+      existingUserMap.set(user.username, user)
+    })
+
     const oktaUsernames = new Set(oktaUsers.map((user) => user.username))
 
-    // Process Okta users (add/update)
+    // Batch process users for better performance
+    const usersToAdd = []
+    const usersToUpdate = []
+
+    // Categorize users for batch operations
     for (const user of oktaUsers) {
       try {
-        // Check if user already exists
-        const existingUser = await env.DB.prepare(
-          'SELECT id, username FROM users WHERE username = ?',
-        )
-          .bind(user.username)
-          .first()
+        const existingUser = existingUserMap.get(user.username)
 
         if (existingUser) {
-          // User exists, update first name and email
-          await env.DB.prepare(
-            `
-            UPDATE users SET first_name = ?, primary_email = ?, updated_at = CURRENT_TIMESTAMP 
-            WHERE username = ?
-          `,
-          )
-            .bind(user.firstName, user.email, user.username)
-            .run()
-
-          results.updated++
-          console.log('Updated user details for:', user.username)
+          // Check if update is needed
+          if (
+            existingUser.first_name !== user.firstName ||
+            existingUser.primary_email !== user.email
+          ) {
+            usersToUpdate.push(user)
+          } else {
+            results.skipped++
+          }
         } else {
-          // Add new user with default "not started" training status and user details
-          await env.DB.prepare(
-            `
-            INSERT INTO users (username, first_name, primary_email, training_status, created_at, updated_at) 
-            VALUES (?, ?, ?, 'not started', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          `,
-          )
-            .bind(user.username, user.firstName, user.email)
-            .run()
+          usersToAdd.push(user)
+        }
+      } catch (error) {
+        console.error('Error categorizing user:', user.username, error)
+        results.errors.push(`${user.username}: ${error.message}`)
+      }
+    }
 
+    // Batch insert new users
+    if (usersToAdd.length > 0) {
+      try {
+        // Use transaction for batch insert
+        const insertStmt = env.DB.prepare(`
+          INSERT INTO users (username, first_name, primary_email, training_status, created_at, updated_at) 
+          VALUES (?, ?, ?, 'not started', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `)
+
+        for (const user of usersToAdd) {
+          await insertStmt.bind(user.username, user.firstName, user.email).run()
           results.added++
           console.log(
             `Added new user: ${user.username} (${user.firstName} - ${user.email})`,
           )
         }
       } catch (error) {
-        console.error('Error syncing user:', user.username, error)
-        results.errors.push(`${user.username}: ${error.message}`)
+        console.error('Error in batch insert:', error)
+        results.errors.push(`Batch insert: ${error.message}`)
+      }
+    }
+
+    // Batch update existing users
+    if (usersToUpdate.length > 0) {
+      try {
+        const updateStmt = env.DB.prepare(`
+          UPDATE users SET first_name = ?, primary_email = ?, updated_at = CURRENT_TIMESTAMP 
+          WHERE username = ?
+        `)
+
+        for (const user of usersToUpdate) {
+          await updateStmt.bind(user.firstName, user.email, user.username).run()
+          results.updated++
+          console.log('Updated user details for:', user.username)
+        }
+      } catch (error) {
+        console.error('Error in batch update:', error)
+        results.errors.push(`Batch update: ${error.message}`)
       }
     }
 
     // Remove users that no longer exist in Okta
-    const usersToRemove = [...existingUsernames].filter(
+    const usersToRemove = [...existingUserMap.keys()].filter(
       (username) => !oktaUsernames.has(username),
     )
 
-    for (const username of usersToRemove) {
+    if (usersToRemove.length > 0) {
       try {
-        const deleteResult = await env.DB.prepare(
+        const deleteStmt = env.DB.prepare(
           'DELETE FROM users WHERE username = ?',
         )
-          .bind(username)
-          .run()
 
-        const changes = deleteResult.changes || deleteResult.meta?.changes || 0
-        if (changes > 0) {
-          results.removed++
-          console.log('Removed user no longer in Okta:', username)
+        for (const username of usersToRemove) {
+          const deleteResult = await deleteStmt.bind(username).run()
+          const changes =
+            deleteResult.changes || deleteResult.meta?.changes || 0
+          if (changes > 0) {
+            results.removed++
+            console.log('Removed user no longer in Okta:', username)
+          }
         }
       } catch (error) {
-        console.error('Error removing user:', username, error)
-        results.errors.push(`${username} (removal): ${error.message}`)
+        console.error('Error in batch removal:', error)
+        results.errors.push(`Batch removal: ${error.message}`)
       }
     }
   } catch (error) {
@@ -216,15 +314,22 @@ export async function fetchOktaGroups(env) {
       )
     }
 
-    const response = await fetch(
-      `https://${env.OKTA_DOMAIN}/api/v1/groups?limit=200`,
-      {
-        headers: {
-          Authorization: `SSWS ${env.OKTA_API_TOKEN}`,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
+    const cacheKey = `${CACHE_CONFIG.OKTA_GROUPS.key}_${env.OKTA_DOMAIN}`
+    const limit = env.OKTA_FETCH_LIMIT || 200
+    const url = `https://${env.OKTA_DOMAIN}/api/v1/groups?limit=${limit}`
+    const options = {
+      headers: {
+        Authorization: `SSWS ${env.OKTA_API_TOKEN}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
       },
+    }
+
+    const response = await cachedFetch(
+      url,
+      options,
+      cacheKey,
+      CACHE_CONFIG.OKTA_GROUPS.ttl,
     )
 
     if (!response.ok) {
