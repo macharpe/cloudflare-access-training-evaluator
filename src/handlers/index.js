@@ -2,6 +2,7 @@ import { loadPublicKey } from '../auth/keys.js'
 import { verifyToken, signJWT } from '../auth/jwt.js'
 import { externalEvaluation } from '../auth/evaluation.js'
 import { initializeDatabase } from '../database/training.js'
+import { sanitizeForLogging } from '../utils/validation.js'
 
 /**
  * Top level handler for database initialization endpoint
@@ -159,10 +160,21 @@ export async function handleExternalEvaluationRequest(env, request) {
   }
 
   const now = Math.round(Date.now() / 1000)
-  let result = { success: false, iat: now, exp: now + 300 }
+  const JWT_EXPIRY_SECONDS = 300
+  let result = { success: false, iat: now, exp: now + JWT_EXPIRY_SECONDS }
 
   try {
+    // Validate request body
+    if (!request.body) {
+      throw new Error('Request body is required')
+    }
+
     const body = await request.json()
+
+    if (!body.token) {
+      throw new Error('Token is required')
+    }
+
     const claims = await verifyToken(env, body.token)
 
     if (claims) {
@@ -180,13 +192,25 @@ export async function handleExternalEvaluationRequest(env, request) {
       headers: { 'content-type': 'application/json' },
     })
   } catch (e) {
-    console.log(`error:`, e.toString())
-    return new Response(
-      JSON.stringify({ success: false, error: e.toString(), stack: e.stack }),
-      {
-        status: 403,
-        headers: { 'content-type': 'application/json' },
-      },
-    )
+    // Log detailed error for debugging (sanitized)
+    console.error('External evaluation error:', sanitizeForLogging(e.message))
+
+    // Create production-safe error response
+    const errorResponse = {
+      success: false,
+      error: 'Authentication failed',
+      timestamp: new Date().toISOString(),
+    }
+
+    // Include detailed error info only in debug mode
+    if (env.DEBUG) {
+      errorResponse.details = sanitizeForLogging(e.message)
+      errorResponse.stack = sanitizeForLogging(e.stack || '')
+    }
+
+    return new Response(JSON.stringify(errorResponse), {
+      status: 403,
+      headers: { 'content-type': 'application/json' },
+    })
   }
 }
