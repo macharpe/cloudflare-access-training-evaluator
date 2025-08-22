@@ -13,6 +13,7 @@ import {
   createUnauthorizedResponse,
   createUnauthorizedHtmlResponse,
 } from './auth/admin.js'
+import { createCSPHeaders } from './security/csp.js'
 import { isAccessAuthenticated } from './auth/access.js'
 import {
   logRequest,
@@ -170,7 +171,10 @@ export default {
         }),
         {
           status: 500,
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            'content-type': 'application/json',
+            ...createCSPHeaders(env),
+          },
         },
       )
     }

@@ -73,7 +73,9 @@ export async function fetchOktaUsers(env) {
           }
         } catch (error) {
           console.error(
-            `Invalid user data for ${sanitizeForLogging(user.profile.login)}:`,
+            'Invalid user data for user:',
+            sanitizeForLogging(user.profile.login),
+            'Error:',
             error.message,
           )
           return null
@@ -158,7 +160,9 @@ export async function fetchOktaGroupUsers(env, groupId) {
           }
         } catch (error) {
           console.error(
-            `Invalid user data for ${sanitizeForLogging(user.profile.login)}:`,
+            'Invalid user data for user:',
+            sanitizeForLogging(user.profile.login),
+            'Error:',
             error.message,
           )
           return null

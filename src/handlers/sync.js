@@ -4,6 +4,19 @@ import {
   fetchOktaGroups,
   syncUsersToDatabase,
 } from '../integrations/okta.js'
+import { createCSPHeaders } from '../security/csp.js'
+
+/**
+ * Create secure headers for JSON responses
+ * @param {Object} env - Environment bindings
+ * @returns {Object} Headers with CSP and security headers
+ */
+function createSecureJSONHeaders(env) {
+  return {
+    'content-type': 'application/json',
+    ...createCSPHeaders(env),
+  }
+}
 
 /**
  * Handle Okta user sync request
@@ -23,7 +36,7 @@ export async function handleOktaSync(env, request) {
         }),
         {
           status: 400,
-          headers: { 'content-type': 'application/json' },
+          headers: createSecureJSONHeaders(env),
         },
       )
     }
@@ -48,7 +61,7 @@ export async function handleOktaSync(env, request) {
           results: { added: 0, updated: 0, skipped: 0, errors: [] },
         }),
         {
-          headers: { 'content-type': 'application/json' },
+          headers: createSecureJSONHeaders(env),
         },
       )
     }
@@ -98,7 +111,7 @@ export async function handleOktaGroups(env) {
         }),
         {
           status: 400,
-          headers: { 'content-type': 'application/json' },
+          headers: createSecureJSONHeaders(env),
         },
       )
     }
@@ -146,7 +159,7 @@ export async function handleOktaUsers(env, request) {
         }),
         {
           status: 400,
-          headers: { 'content-type': 'application/json' },
+          headers: createSecureJSONHeaders(env),
         },
       )
     }
