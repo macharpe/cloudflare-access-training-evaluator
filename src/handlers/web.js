@@ -1,4 +1,9 @@
 import { updateUserTrainingStatusByEmail } from '../database/training.js'
+import {
+  generateNonce,
+  addCSPHeaders,
+  createCSPHeaders,
+} from '../security/csp.js'
 
 /**
  * Get all users from the database
@@ -26,6 +31,10 @@ async function getAllUsers(env) {
 export async function handleWebInterface(env) {
   const users = await getAllUsers(env)
 
+  // Generate nonces for inline scripts and styles
+  const styleNonce = generateNonce()
+  const scriptNonce = generateNonce()
+
   const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -33,7 +42,7 @@ export async function handleWebInterface(env) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Training Completion Status</title>
-    <style>
+    <style nonce="${styleNonce}">
         * {
             margin: 0;
             padding: 0;
@@ -386,7 +395,7 @@ export async function handleWebInterface(env) {
         </div>
     </div>
 
-    <script>
+    <script nonce="${scriptNonce}">
         async function updateTrainingStatus(email, newStatus, selectElement) {
             const originalValue = selectElement.getAttribute('data-original-value');
             
@@ -534,9 +543,12 @@ export async function handleWebInterface(env) {
 </html>
   `
 
-  return new Response(html, {
+  const response = new Response(html, {
     headers: { 'content-type': 'text/html' },
   })
+
+  // Add CSP headers with nonces
+  return addCSPHeaders(response, env, scriptNonce, styleNonce)
 }
 
 /**
@@ -550,6 +562,12 @@ export async function handleUpdateTraining(env, request) {
     const body = await request.json()
     const { email, status } = body
 
+    // Create secure headers for JSON responses
+    const secureHeaders = {
+      'content-type': 'application/json',
+      ...createCSPHeaders(env),
+    }
+
     if (!email || !status) {
       return new Response(
         JSON.stringify({
@@ -558,7 +576,7 @@ export async function handleUpdateTraining(env, request) {
         }),
         {
           status: 400,
-          headers: { 'content-type': 'application/json' },
+          headers: secureHeaders,
         },
       )
     }
@@ -571,7 +589,7 @@ export async function handleUpdateTraining(env, request) {
         }),
         {
           status: 400,
-          headers: { 'content-type': 'application/json' },
+          headers: secureHeaders,
         },
       )
     }
@@ -585,7 +603,7 @@ export async function handleUpdateTraining(env, request) {
           message: 'Training status updated successfully',
         }),
         {
-          headers: { 'content-type': 'application/json' },
+          headers: secureHeaders,
         },
       )
     } else {
@@ -596,7 +614,7 @@ export async function handleUpdateTraining(env, request) {
         }),
         {
           status: 404,
-          headers: { 'content-type': 'application/json' },
+          headers: secureHeaders,
         },
       )
     }
@@ -609,7 +627,10 @@ export async function handleUpdateTraining(env, request) {
       }),
       {
         status: 500,
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          ...createCSPHeaders(env),
+        },
       },
     )
   }

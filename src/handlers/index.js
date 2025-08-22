@@ -3,6 +3,11 @@ import { verifyToken, signJWT } from '../auth/jwt.js'
 import { externalEvaluation } from '../auth/evaluation.js'
 import { initializeDatabase } from '../database/training.js'
 import { sanitizeForLogging } from '../utils/validation.js'
+import {
+  generateNonce,
+  addCSPHeaders,
+  createCSPHeaders,
+} from '../security/csp.js'
 
 /**
  * Top level handler for database initialization endpoint
@@ -20,7 +25,10 @@ export async function handleDatabaseInitRequest(env) {
     }),
     {
       status: success ? 200 : 500,
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        ...createCSPHeaders(env),
+      },
     },
   )
 }
@@ -34,7 +42,10 @@ export async function handleKeysRequest(env) {
   const keys = await loadPublicKey(env)
   return new Response(JSON.stringify({ keys: [keys] }), {
     status: 200,
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      'content-type': 'application/json',
+      ...createCSPHeaders(env),
+    },
   })
 }
 
@@ -47,6 +58,7 @@ export async function handleKeysRequest(env) {
 export async function handleExternalEvaluationRequest(env, request) {
   // Handle browser GET requests with a friendly response
   if (request.method === 'GET') {
+    const styleNonce = generateNonce()
     const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -54,7 +66,7 @@ export async function handleExternalEvaluationRequest(env, request) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Training Compliance Gateway</title>
-    <style>
+    <style nonce="${styleNonce}">
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 50%, #90caf9 100%);
@@ -154,9 +166,11 @@ export async function handleExternalEvaluationRequest(env, request) {
 </html>
     `
 
-    return new Response(html, {
+    const response = new Response(html, {
       headers: { 'content-type': 'text/html' },
     })
+
+    return addCSPHeaders(response, env, null, styleNonce)
   }
 
   const now = Math.round(Date.now() / 1000)
@@ -189,7 +203,10 @@ export async function handleExternalEvaluationRequest(env, request) {
       console.log('outgoing JWT', jwt)
     }
     return new Response(JSON.stringify({ token: jwt }), {
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        ...createCSPHeaders(env),
+      },
     })
   } catch (e) {
     // Log detailed error for debugging (sanitized)
@@ -210,7 +227,10 @@ export async function handleExternalEvaluationRequest(env, request) {
 
     return new Response(JSON.stringify(errorResponse), {
       status: 403,
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        ...createCSPHeaders(env),
+      },
     })
   }
 }
