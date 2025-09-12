@@ -797,6 +797,12 @@ export async function handleWebInterface(env) {
             background: #4B5563;
         }
         
+        .filter-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
         /* Bulk Actions */
         .bulk-actions {
             background: var(--cta);
@@ -1066,6 +1072,7 @@ export async function handleWebInterface(env) {
                     <input type="text" id="searchFilter" class="filter-input" placeholder="Search by name or email...">
                 </div>
                 <div class="filter-actions">
+                    <label class="filter-label" style="visibility: hidden;">Actions:</label>
                     <button type="button" class="filter-clear" onclick="clearFilters()">Clear Filters</button>
                 </div>
             </div>
