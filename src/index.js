@@ -86,14 +86,17 @@ export default {
           () => handleDatabaseInitRequest(env),
           false,
         )
+      } else if (url.pathname === '/') {
+        // Root path - System overview (no authentication required)
+        const { handleSystemOverview } = await import('./handlers/web.js')
+        response = await handleSystemOverview(env)
       } else if (
-        url.pathname === '/' ||
         url.pathname === '/admin' ||
         url.pathname === '/admin/' ||
         url.pathname === '/dashboard' ||
         url.pathname === '/dashboard/'
       ) {
-        // Main web interface - Cloudflare Access authentication
+        // Admin web interface - Cloudflare Access authentication
         response = await handleAdminRequest(
           request,
           env,

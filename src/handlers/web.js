@@ -1712,3 +1712,312 @@ export async function handleUpdateTraining(env, request) {
     )
   }
 }
+
+/**
+ * Handle GET request for the system overview (root path)
+ * @param {*} env - Environment bindings
+ * @returns {Response} HTML response showing system details
+ */
+export async function handleSystemOverview(env) {
+  // Generate nonces for inline scripts and styles
+  const styleNonce = generateNonce()
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Training Compliance Gateway</title>
+    <style nonce="${styleNonce}">
+        /* Professional Design System - Gateway Style */
+        :root {
+            --accent: #F38020;         /* Cloudflare Orange */
+            --cta: #2563EB;            /* Blue CTA */
+            --cta-hover: #1E40AF;
+            --surface: #ffffff;        /* Card & modal surface */
+            --muted: #6B7280;          /* Muted text */
+            --border: #E5E7EB;         /* Subtle borders */
+            --panel: #F8FAFC;          /* Light panels inside card */
+            --shadow: 0 12px 30px rgba(2,6,23,.18);
+            --radius: 16px;
+            --text-primary: #111827;
+            --text-secondary: #374151;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: radial-gradient(1200px 800px at 50% -10%, #111827 0%, #0f172a 60%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            padding: 24px;
+        }
+        
+        .container {
+            background: var(--surface);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            max-width: 580px;
+            width: 100%;
+            margin: 0;
+            overflow: hidden;
+        }
+        
+        .header {
+            background: var(--accent);
+            color: #fff;
+            padding: 28px 28px 24px;
+            text-align: center;
+        }
+        
+        .header .icon {
+            font-size: 48px;
+            display: block;
+            margin-bottom: 16px;
+            line-height: 1;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            font-size: 15px;
+            opacity: 0.95;
+            line-height: 1.5;
+        }
+        
+        .content {
+            padding: 28px;
+        }
+        
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            padding: 12px 16px;
+            background: #F0FDF4;
+            border: 1px solid #BBF7D0;
+            border-radius: 8px;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #16A34A;
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .status-text {
+            color: #166534;
+            font-weight: 600;
+            font-size: 16px;
+        }
+        
+        .endpoints-section {
+            margin-bottom: 24px;
+        }
+        
+        .endpoints-section h3 {
+            color: var(--text-primary);
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+        
+        .endpoints-grid {
+            display: grid;
+            gap: 12px;
+        }
+        
+        .endpoint-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 12px 16px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 14px;
+        }
+        
+        .endpoint-method {
+            font-weight: 700;
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            text-align: center;
+            min-width: 48px;
+        }
+        
+        .endpoint-method.get {
+            background: #DBEAFE;
+            color: #1E40AF;
+        }
+        
+        .endpoint-method.post {
+            background: #FEE2E2;
+            color: #DC2626;
+        }
+        
+        .endpoint-path {
+            font-weight: 600;
+            color: var(--text-primary);
+            min-width: 80px;
+        }
+        
+        .endpoint-desc {
+            color: var(--text-secondary);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-size: 14px;
+        }
+        
+        .system-notice {
+            display: flex;
+            gap: 12px;
+            padding: 16px;
+            background: #FEF3C7;
+            border: 1px solid #FDE68A;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+        
+        .notice-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        
+        .notice-content {
+            color: #92400E;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .notice-content strong {
+            font-weight: 600;
+        }
+        
+        .powered-by {
+            text-align: center;
+            padding: 16px 0;
+            border-top: 1px solid var(--border);
+            margin-top: 8px;
+        }
+        
+        .powered-by span {
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                margin: 12px;
+            }
+            
+            .content {
+                padding: 22px;
+            }
+            
+            .header {
+                padding: 24px;
+            }
+            
+            .header h1 {
+                font-size: 24px;
+            }
+            
+            .endpoint-card {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            
+            .endpoint-method {
+                align-self: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <span class="icon">🛡️</span>
+            <h1>Training Compliance Gateway</h1>
+            <p>This is a Cloudflare Access External Evaluation Worker that enforces training completion requirements for Zero Trust Security.</p>
+        </div>
+        
+        <div class="content">
+            <div class="system-status">
+                <span class="status-indicator"></span>
+                <span class="status-text">Worker is running and ready to process access requests</span>
+            </div>
+            
+            <div class="endpoints-section">
+                <h3>Available Endpoints:</h3>
+                <div class="endpoints-grid">
+                    <div class="endpoint-card">
+                        <div class="endpoint-method get">GET</div>
+                        <div class="endpoint-path">/keys</div>
+                        <div class="endpoint-desc">Public key endpoint for Cloudflare Access</div>
+                    </div>
+                    <div class="endpoint-card">
+                        <div class="endpoint-method post">POST</div>
+                        <div class="endpoint-path">/</div>
+                        <div class="endpoint-desc">External evaluation endpoint (used by Access)</div>
+                    </div>
+                    <div class="endpoint-card">
+                        <div class="endpoint-method get">GET</div>
+                        <div class="endpoint-path">/admin</div>
+                        <div class="endpoint-desc">Training management dashboard (Access protected)</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="system-notice">
+                <div class="notice-icon">⚠️</div>
+                <div class="notice-content">
+                    <strong>Note:</strong> This endpoint is designed to receive POST requests with JWT tokens from Cloudflare Access. Direct browser access shows this informational page instead of the JSON parsing error.
+                </div>
+            </div>
+            
+            <div class="powered-by">
+                <span>Powered by Cloudflare Workers</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+  `
+
+  const response = new Response(html, {
+    headers: { 'content-type': 'text/html' },
+  })
+
+  // Add CSP headers with nonces
+  return addCSPHeaders(response, env, null, styleNonce)
+}
