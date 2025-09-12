@@ -86,7 +86,7 @@ export default {
           () => handleDatabaseInitRequest(env),
           false,
         )
-      } else if (url.pathname === '/') {
+      } else if (url.pathname === '/' && request.method === 'GET') {
         // Root path - System overview (no authentication required)
         const { handleSystemOverview } = await import('./handlers/web.js')
         response = await handleSystemOverview(env)
