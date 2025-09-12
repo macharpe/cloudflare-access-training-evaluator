@@ -86,8 +86,14 @@ export default {
           () => handleDatabaseInitRequest(env),
           false,
         )
-      } else if (url.pathname === '/admin' || url.pathname === '/admin/') {
-        // Admin web interface - Cloudflare Access authentication
+      } else if (
+        url.pathname === '/' ||
+        url.pathname === '/admin' ||
+        url.pathname === '/admin/' ||
+        url.pathname === '/dashboard' ||
+        url.pathname === '/dashboard/'
+      ) {
+        // Main web interface - Cloudflare Access authentication
         response = await handleAdminRequest(
           request,
           env,
