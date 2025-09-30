@@ -146,21 +146,21 @@ export async function handleWebInterface(env) {
             appearance: none;
             border: none;
             cursor: pointer;
-            background: var(--cta);
+            background: linear-gradient(180deg, var(--table-header), var(--table-header-end));
             color: #fff;
             font-weight: 600;
             font-size: 16px;
             padding: 12px 22px;
             border-radius: 12px;
             transition: transform 0.05s ease, background 0.2s ease, box-shadow 0.2s ease;
-            box-shadow: 0 6px 14px rgba(37,99,235,.25);
+            box-shadow: 0 6px 14px rgba(31,42,90,.25);
             display: inline-flex;
             align-items: center;
             gap: 8px;
         }
         
         .sync-button:hover {
-            background: var(--cta-hover);
+            background: linear-gradient(180deg, #253463, #2a3a6f);
         }
         
         .sync-button:active {
@@ -218,7 +218,7 @@ export async function handleWebInterface(env) {
         }
         
         .stat-card.total .stat-number {
-            color: #4f46e5;
+            color: var(--table-header);
         }
         
         .stat-label {
