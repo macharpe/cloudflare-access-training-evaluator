@@ -5,7 +5,7 @@
  * data conforms to expected TypeScript types.
  */
 
-import type { TrainingStatus, AccessClaims } from './index';
+import type { TrainingStatus, AccessClaims } from './index'
 
 /**
  * Type guard to check if value is a valid TrainingStatus
@@ -17,7 +17,7 @@ export function isTrainingStatus(value: unknown): value is TrainingStatus {
   return (
     typeof value === 'string' &&
     ['not started', 'started', 'completed'].includes(value)
-  );
+  )
 }
 
 /**
@@ -27,9 +27,9 @@ export function isTrainingStatus(value: unknown): value is TrainingStatus {
  * @returns True if value matches AccessClaims interface
  */
 export function isAccessClaims(value: unknown): value is AccessClaims {
-  if (typeof value !== 'object' || value === null) return false;
+  if (typeof value !== 'object' || value === null) return false
 
-  const claims = value as Record<string, unknown>;
+  const claims = value as Record<string, unknown>
 
   return (
     typeof claims['email'] === 'string' &&
@@ -38,7 +38,7 @@ export function isAccessClaims(value: unknown): value is AccessClaims {
     typeof claims['nonce'] === 'string' &&
     typeof claims['identity'] === 'object' &&
     claims['identity'] !== null
-  );
+  )
 }
 
 /**
@@ -50,10 +50,10 @@ export function isAccessClaims(value: unknown): value is AccessClaims {
  */
 export function assertDefined<T>(
   value: T | null | undefined,
-  message: string = 'Value is null or undefined'
+  message: string = 'Value is null or undefined',
 ): asserts value is T {
   if (value === null || value === undefined) {
-    throw new Error(message);
+    throw new Error(message)
   }
 }
 
@@ -64,7 +64,7 @@ export function assertDefined<T>(
  * @returns True if value is a string
  */
 export function isString(value: unknown): value is string {
-  return typeof value === 'string';
+  return typeof value === 'string'
 }
 
 /**
@@ -74,7 +74,7 @@ export function isString(value: unknown): value is string {
  * @returns True if value is a number and not NaN
  */
 export function isNumber(value: unknown): value is number {
-  return typeof value === 'number' && !isNaN(value);
+  return typeof value === 'number' && !isNaN(value)
 }
 
 /**
@@ -84,5 +84,5 @@ export function isNumber(value: unknown): value is number {
  * @returns True if value is a non-empty string
  */
 export function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0;
+  return typeof value === 'string' && value.trim().length > 0
 }

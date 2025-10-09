@@ -45,12 +45,6 @@
     /* Cloudflare Workers Types */
     "types": ["@cloudflare/workers-types"]
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.js"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist"
-  ]
+  "include": ["src/**/*.ts", "src/**/*.js"],
+  "exclude": ["node_modules", "dist"]
 }

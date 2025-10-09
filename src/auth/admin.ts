@@ -19,8 +19,8 @@ export function createUnauthorizedResponse(): Response {
     {
       status: 401,
       headers: { 'content-type': 'application/json' },
-    }
-  );
+    },
+  )
 }
 
 /**
@@ -206,10 +206,10 @@ export function createUnauthorizedHtmlResponse(): Response {
   </div>
 </body>
 </html>
-  `;
+  `
 
   return new Response(html, {
     status: 401,
     headers: { 'content-type': 'text/html' },
-  });
+  })
 }

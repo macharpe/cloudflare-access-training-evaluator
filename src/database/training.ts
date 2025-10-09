@@ -4,8 +4,8 @@
  * Provides CRUD operations for user training status in D1 database.
  */
 
-import type { Env, TrainingStatus, User } from '../types';
-import { isTrainingStatus } from '../types/guards';
+import type { Env, TrainingStatus, User } from '../types'
+import { isTrainingStatus } from '../types/guards'
 
 /**
  * Initialize the D1 database with users table and indexes
@@ -27,42 +27,44 @@ export async function initializeDatabase(env: Env): Promise<boolean> {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
-    `
-    ).run();
+    `,
+    ).run()
 
     // Create indexes for faster lookups
     await env.DB.prepare(
       `
       CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)
-    `
-    ).run();
+    `,
+    ).run()
 
     await env.DB.prepare(
       `
       CREATE INDEX IF NOT EXISTS idx_users_email ON users(primary_email)
-    `
-    ).run();
+    `,
+    ).run()
 
     // Apply migration to add new columns if they don't exist
     try {
-      await env.DB.prepare(`ALTER TABLE users ADD COLUMN first_name TEXT`).run();
+      await env.DB.prepare(`ALTER TABLE users ADD COLUMN first_name TEXT`).run()
     } catch (e) {
       // Column already exists
     }
 
     try {
-      await env.DB.prepare(`ALTER TABLE users ADD COLUMN primary_email TEXT`).run();
+      await env.DB.prepare(
+        `ALTER TABLE users ADD COLUMN primary_email TEXT`,
+      ).run()
     } catch (e) {
       // Column already exists
     }
 
     // No initial user data - users will be synced from Okta
 
-    console.log('Database initialized successfully');
-    return true;
+    console.log('Database initialized successfully')
+    return true
   } catch (error) {
-    console.error('Database initialization error:', error);
-    return false;
+    console.error('Database initialization error:', error)
+    return false
   }
 }
 
@@ -75,19 +77,19 @@ export async function initializeDatabase(env: Env): Promise<boolean> {
  */
 export async function getUserTrainingStatus(
   env: Env,
-  username: string
+  username: string,
 ): Promise<string | null> {
   try {
     const result = await env.DB.prepare(
-      'SELECT training_status FROM users WHERE username = ?'
+      'SELECT training_status FROM users WHERE username = ?',
     )
       .bind(username)
-      .first<{ training_status: string }>();
+      .first<{ training_status: string }>()
 
-    return result ? result.training_status : null;
+    return result ? result.training_status : null
   } catch (error) {
-    console.error('Database error:', error);
-    return null;
+    console.error('Database error:', error)
+    return null
   }
 }
 
@@ -102,29 +104,30 @@ export async function getUserTrainingStatus(
 export async function updateUserTrainingStatus(
   env: Env,
   username: string,
-  status: TrainingStatus
+  status: TrainingStatus,
 ): Promise<boolean> {
   try {
     if (!isTrainingStatus(status)) {
-      console.error('Invalid training status:', status);
-      return false;
+      console.error('Invalid training status:', status)
+      return false
     }
 
     const result = await env.DB.prepare(
       `
       UPDATE users SET training_status = ?, updated_at = CURRENT_TIMESTAMP
       WHERE username = ?
-    `
+    `,
     )
       .bind(status, username)
-      .run();
+      .run()
 
     // Check both result.changes and result.meta.changes for compatibility
-    const changes = (result as { changes?: number }).changes || result.meta?.changes || 0;
-    return changes > 0;
+    const changes =
+      (result as { changes?: number }).changes || result.meta?.changes || 0
+    return changes > 0
   } catch (error) {
-    console.error('Database update error:', error);
-    return false;
+    console.error('Database update error:', error)
+    return false
   }
 }
 
@@ -139,29 +142,30 @@ export async function updateUserTrainingStatus(
 export async function updateUserTrainingStatusByEmail(
   env: Env,
   email: string,
-  status: TrainingStatus
+  status: TrainingStatus,
 ): Promise<boolean> {
   try {
     if (!isTrainingStatus(status)) {
-      console.error('Invalid training status:', status);
-      return false;
+      console.error('Invalid training status:', status)
+      return false
     }
 
     const result = await env.DB.prepare(
       `
       UPDATE users SET training_status = ?, updated_at = CURRENT_TIMESTAMP
       WHERE primary_email = ?
-    `
+    `,
     )
       .bind(status, email)
-      .run();
+      .run()
 
     // Check both result.changes and result.meta.changes for compatibility
-    const changes = (result as { changes?: number }).changes || result.meta?.changes || 0;
-    return changes > 0;
+    const changes =
+      (result as { changes?: number }).changes || result.meta?.changes || 0
+    return changes > 0
   } catch (error) {
-    console.error('Database update error:', error);
-    return false;
+    console.error('Database update error:', error)
+    return false
   }
 }
 
@@ -173,11 +177,13 @@ export async function updateUserTrainingStatusByEmail(
  */
 export async function getAllUsers(env: Env): Promise<User[]> {
   try {
-    const result = await env.DB.prepare('SELECT * FROM users ORDER BY username ASC').all<User>();
-    return result.results || [];
+    const result = await env.DB.prepare(
+      'SELECT * FROM users ORDER BY username ASC',
+    ).all<User>()
+    return result.results || []
   } catch (error) {
-    console.error('Database error fetching users:', error);
-    return [];
+    console.error('Database error fetching users:', error)
+    return []
   }
 }
 
@@ -196,12 +202,12 @@ export async function upsertUser(
   username: string,
   firstName: string | null,
   email: string | null,
-  status: TrainingStatus
+  status: TrainingStatus,
 ): Promise<boolean> {
   try {
     if (!isTrainingStatus(status)) {
-      console.error('Invalid training status:', status);
-      return false;
+      console.error('Invalid training status:', status)
+      return false
     }
 
     await env.DB.prepare(
@@ -213,15 +219,15 @@ export async function upsertUser(
         primary_email = excluded.primary_email,
         training_status = excluded.training_status,
         updated_at = CURRENT_TIMESTAMP
-    `
+    `,
     )
       .bind(username, firstName, email, status)
-      .run();
+      .run()
 
-    return true;
+    return true
   } catch (error) {
-    console.error('Database upsert error:', error);
-    return false;
+    console.error('Database upsert error:', error)
+    return false
   }
 }
 
@@ -234,12 +240,15 @@ export async function upsertUser(
  */
 export async function deleteUser(env: Env, username: string): Promise<boolean> {
   try {
-    const result = await env.DB.prepare('DELETE FROM users WHERE username = ?').bind(username).run();
+    const result = await env.DB.prepare('DELETE FROM users WHERE username = ?')
+      .bind(username)
+      .run()
 
-    const changes = (result as { changes?: number }).changes || result.meta?.changes || 0;
-    return changes > 0;
+    const changes =
+      (result as { changes?: number }).changes || result.meta?.changes || 0
+    return changes > 0
   } catch (error) {
-    console.error('Database delete error:', error);
-    return false;
+    console.error('Database delete error:', error)
+    return false
   }
 }

@@ -5,27 +5,27 @@
  * Public keys stored in KV, private keys in Workers Secrets.
  */
 
-import type { Env, JWK } from '../types';
+import type { Env, JWK } from '../types'
 
 // KV key that holds the generated signing keys
-const KV_SIGNING_KEY = 'external_auth_keys';
+const KV_SIGNING_KEY = 'external_auth_keys'
 
 /**
  * Stored key structure in KV
  */
 interface StoredKey {
-  public: JsonWebKey;
-  kid: string;
+  public: JsonWebKey
+  kid: string
 }
 
 /**
  * Key generation result
  */
 interface KeyGenerationResult {
-  keypair: CryptoKeyPair;
-  publicKey: JsonWebKey;
-  privateKey: JsonWebKey;
-  kid: string;
+  keypair: CryptoKeyPair
+  publicKey: JsonWebKey
+  privateKey: JsonWebKey
+  kid: string
 }
 
 /**
@@ -35,11 +35,11 @@ interface KeyGenerationResult {
  * @returns Key ID (SHA-1 hash)
  */
 async function generateKID(publicKey: string): Promise<string> {
-  const msgUint8 = new TextEncoder().encode(publicKey);
-  const hashBuffer = await crypto.subtle.digest('SHA-1', msgUint8);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-  return hashHex.substring(0, 64);
+  const msgUint8 = new TextEncoder().encode(publicKey)
+  const hashBuffer = await crypto.subtle.digest('SHA-1', msgUint8)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+  return hashHex.substring(0, 64)
 }
 
 /**
@@ -51,7 +51,7 @@ async function generateKID(publicKey: string): Promise<string> {
  * @returns Generated key information
  */
 export async function generateKeys(env: Env): Promise<KeyGenerationResult> {
-  console.log('generating a new signing key pair');
+  console.log('generating a new signing key pair')
   try {
     const keypair = (await crypto.subtle.generateKey(
       {
@@ -61,26 +61,35 @@ export async function generateKeys(env: Env): Promise<KeyGenerationResult> {
         hash: 'SHA-256',
       },
       true,
-      ['sign', 'verify']
-    )) as CryptoKeyPair;
+      ['sign', 'verify'],
+    )) as CryptoKeyPair
 
-    const publicKey = (await crypto.subtle.exportKey('jwk', keypair.publicKey)) as JsonWebKey;
-    const privateKey = (await crypto.subtle.exportKey('jwk', keypair.privateKey)) as JsonWebKey;
-    const kid = await generateKID(JSON.stringify(publicKey));
+    const publicKey = (await crypto.subtle.exportKey(
+      'jwk',
+      keypair.publicKey,
+    )) as JsonWebKey
+    const privateKey = (await crypto.subtle.exportKey(
+      'jwk',
+      keypair.privateKey,
+    )) as JsonWebKey
+    const kid = await generateKID(JSON.stringify(publicKey))
 
     // Store only public key and kid in KV (secure)
-    await env.KEY_STORAGE.put(KV_SIGNING_KEY, JSON.stringify({ public: publicKey, kid: kid }));
+    await env.KEY_STORAGE.put(
+      KV_SIGNING_KEY,
+      JSON.stringify({ public: publicKey, kid: kid }),
+    )
 
     console.log(
-      'SECURITY WARNING: Private key generated but not stored. You must manually set RSA_PRIVATE_KEY secret.'
-    );
-    console.log('Run: wrangler secret put RSA_PRIVATE_KEY');
-    console.log('Private key JWK:', JSON.stringify(privateKey));
+      'SECURITY WARNING: Private key generated but not stored. You must manually set RSA_PRIVATE_KEY secret.',
+    )
+    console.log('Run: wrangler secret put RSA_PRIVATE_KEY')
+    console.log('Private key JWK:', JSON.stringify(privateKey))
 
-    return { keypair, publicKey, privateKey, kid };
+    return { keypair, publicKey, privateKey, kid }
   } catch (e) {
-    console.log('failed to generate keyset', e);
-    throw new Error('failed to generate keyset');
+    console.log('failed to generate keyset', e)
+    throw new Error('failed to generate keyset')
   }
 }
 
@@ -92,12 +101,12 @@ export async function generateKeys(env: Env): Promise<KeyGenerationResult> {
  */
 export async function loadPublicKey(env: Env): Promise<JWK> {
   // If the JWK values are already in KV then just return that
-  const key = await env.KEY_STORAGE.get<StoredKey>(KV_SIGNING_KEY, 'json');
+  const key = await env.KEY_STORAGE.get<StoredKey>(KV_SIGNING_KEY, 'json')
   if (key) {
-    return { kid: key.kid, ...(key.public as Omit<JWK, 'kid'>) };
+    return { kid: key.kid, ...(key.public as Omit<JWK, 'kid'>) }
   }
 
   // Otherwise generate keys and store the public key in KV
-  const { kid, publicKey } = await generateKeys(env);
-  return { kid, ...(publicKey as Omit<JWK, 'kid'>) };
+  const { kid, publicKey } = await generateKeys(env)
+  return { kid, ...(publicKey as Omit<JWK, 'kid'>) }
 }

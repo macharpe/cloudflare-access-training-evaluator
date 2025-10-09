@@ -4,40 +4,44 @@
  * Handles database initialization, JWKS endpoint, and external evaluation requests.
  */
 
-import type { Env, AccessClaims } from '../types/index.js';
-import { loadPublicKey } from '../auth/keys.js';
-import { verifyToken, signJWT } from '../auth/jwt.js';
-import { externalEvaluation } from '../auth/evaluation.js';
-import { initializeDatabase } from '../database/training.js';
-import { sanitizeForLogging } from '../utils/validation.js';
-import { generateNonce, addCSPHeaders, createCSPHeaders } from '../security/csp.js';
+import type { Env, AccessClaims } from '../types/index.js'
+import { loadPublicKey } from '../auth/keys.js'
+import { verifyToken, signJWT } from '../auth/jwt.js'
+import { externalEvaluation } from '../auth/evaluation.js'
+import { initializeDatabase } from '../database/training.js'
+import { sanitizeForLogging } from '../utils/validation.js'
+import {
+  generateNonce,
+  addCSPHeaders,
+  createCSPHeaders,
+} from '../security/csp.js'
 
 /**
  * Evaluation result structure
  */
 interface EvaluationResult {
-  success: boolean;
-  iat: number;
-  exp: number;
-  nonce?: string;
+  success: boolean
+  iat: number
+  exp: number
+  nonce?: string
 }
 
 /**
  * Error response structure
  */
 interface ErrorResponse {
-  success: boolean;
-  error: string;
-  timestamp: string;
-  details?: string;
-  stack?: string;
+  success: boolean
+  error: string
+  timestamp: string
+  details?: string
+  stack?: string
 }
 
 /**
  * External evaluation request body
  */
 interface ExternalEvaluationBody {
-  token: string;
+  token: string
 }
 
 /**
@@ -47,11 +51,13 @@ interface ExternalEvaluationBody {
  * @returns HTTP response
  */
 export async function handleDatabaseInitRequest(env: Env): Promise<Response> {
-  const success = await initializeDatabase(env);
+  const success = await initializeDatabase(env)
   return new Response(
     JSON.stringify({
       success,
-      message: success ? 'Database initialized successfully' : 'Database initialization failed',
+      message: success
+        ? 'Database initialized successfully'
+        : 'Database initialization failed',
     }),
     {
       status: success ? 200 : 500,
@@ -59,8 +65,8 @@ export async function handleDatabaseInitRequest(env: Env): Promise<Response> {
         'content-type': 'application/json',
         ...createCSPHeaders(env),
       },
-    }
-  );
+    },
+  )
 }
 
 /**
@@ -70,14 +76,14 @@ export async function handleDatabaseInitRequest(env: Env): Promise<Response> {
  * @returns HTTP response
  */
 export async function handleKeysRequest(env: Env): Promise<Response> {
-  const keys = await loadPublicKey(env);
+  const keys = await loadPublicKey(env)
   return new Response(JSON.stringify({ keys: [keys] }), {
     status: 200,
     headers: {
       'content-type': 'application/json',
       ...createCSPHeaders(env),
     },
-  });
+  })
 }
 
 /**
@@ -89,11 +95,11 @@ export async function handleKeysRequest(env: Env): Promise<Response> {
  */
 export async function handleExternalEvaluationRequest(
   env: Env,
-  request: Request
+  request: Request,
 ): Promise<Response> {
   // Handle browser GET requests with a friendly response
   if (request.method === 'GET') {
-    const styleNonce = generateNonce();
+    const styleNonce = generateNonce()
     const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -199,67 +205,74 @@ export async function handleExternalEvaluationRequest(
     </div>
 </body>
 </html>
-    `;
+    `
 
     const response = new Response(html, {
       headers: { 'content-type': 'text/html' },
-    });
+    })
 
-    return addCSPHeaders(response, env, null, styleNonce);
+    return addCSPHeaders(response, env, null, styleNonce)
   }
 
-  const now = Math.round(Date.now() / 1000);
-  const JWT_EXPIRY_SECONDS = 300;
-  const result: EvaluationResult = { success: false, iat: now, exp: now + JWT_EXPIRY_SECONDS };
+  const now = Math.round(Date.now() / 1000)
+  const JWT_EXPIRY_SECONDS = 300
+  const result: EvaluationResult = {
+    success: false,
+    iat: now,
+    exp: now + JWT_EXPIRY_SECONDS,
+  }
 
   try {
     // Validate request body
     if (!request.body) {
-      throw new Error('Request body is required');
+      throw new Error('Request body is required')
     }
 
-    const body = (await request.json()) as ExternalEvaluationBody;
+    const body = (await request.json()) as ExternalEvaluationBody
 
     if (!body.token) {
-      throw new Error('Token is required');
+      throw new Error('Token is required')
     }
 
-    const claims: AccessClaims = await verifyToken(env, body.token);
+    const claims: AccessClaims = await verifyToken(env, body.token)
 
     if (claims) {
-      result.nonce = claims.nonce;
+      result.nonce = claims.nonce
       if (await externalEvaluation(claims, env)) {
-        result.success = true;
+        result.success = true
       }
     }
 
-    const jwt = await signJWT(env, result as unknown as Record<string, unknown>);
+    const jwt = await signJWT(env, result as unknown as Record<string, unknown>)
     if (env.DEBUG) {
-      console.log('outgoing JWT', jwt);
+      console.log('outgoing JWT', jwt)
     }
     return new Response(JSON.stringify({ token: jwt }), {
       headers: {
         'content-type': 'application/json',
         ...createCSPHeaders(env),
       },
-    });
+    })
   } catch (e) {
     // Log detailed error for debugging (sanitized)
-    const errorMessage = e instanceof Error ? e.message : String(e);
-    console.error('External evaluation error:', sanitizeForLogging(errorMessage));
+    const errorMessage = e instanceof Error ? e.message : String(e)
+    console.error(
+      'External evaluation error:',
+      sanitizeForLogging(errorMessage),
+    )
 
     // Create production-safe error response
     const errorResponse: ErrorResponse = {
       success: false,
       error: 'Authentication failed',
       timestamp: new Date().toISOString(),
-    };
+    }
 
     // Include detailed error info only in debug mode
     if (env.DEBUG) {
-      errorResponse.details = sanitizeForLogging(errorMessage);
+      errorResponse.details = sanitizeForLogging(errorMessage)
       if (e instanceof Error && e.stack) {
-        errorResponse.stack = sanitizeForLogging(e.stack);
+        errorResponse.stack = sanitizeForLogging(e.stack)
       }
     }
 
@@ -269,6 +282,6 @@ export async function handleExternalEvaluationRequest(
         'content-type': 'application/json',
         ...createCSPHeaders(env),
       },
-    });
+    })
   }
 }
