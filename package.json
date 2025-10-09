@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "cloudflare-access-training-worker",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Production-ready Cloudflare Worker implementing External Evaluation Rule for training-based access control with Zero Trust",
   "main": "index.js",
   "scripts": {
