@@ -1,0 +1,103 @@
+/**
+ * RSA key management for JWT signing
+ *
+ * Handles generation and storage of RSA key pairs.
+ * Public keys stored in KV, private keys in Workers Secrets.
+ */
+
+import type { Env, JWK } from '../types';
+
+// KV key that holds the generated signing keys
+const KV_SIGNING_KEY = 'external_auth_keys';
+
+/**
+ * Stored key structure in KV
+ */
+interface StoredKey {
+  public: JsonWebKey;
+  kid: string;
+}
+
+/**
+ * Key generation result
+ */
+interface KeyGenerationResult {
+  keypair: CryptoKeyPair;
+  publicKey: JsonWebKey;
+  privateKey: JsonWebKey;
+  kid: string;
+}
+
+/**
+ * Generate a key ID for the key set
+ *
+ * @param publicKey - Public key string
+ * @returns Key ID (SHA-1 hash)
+ */
+async function generateKID(publicKey: string): Promise<string> {
+  const msgUint8 = new TextEncoder().encode(publicKey);
+  const hashBuffer = await crypto.subtle.digest('SHA-1', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+  return hashHex.substring(0, 64);
+}
+
+/**
+ * Generate a key pair and stores them securely
+ *
+ * Public key stored in KV, private key must be manually stored in secrets.
+ *
+ * @param env - Environment bindings
+ * @returns Generated key information
+ */
+export async function generateKeys(env: Env): Promise<KeyGenerationResult> {
+  console.log('generating a new signing key pair');
+  try {
+    const keypair = (await crypto.subtle.generateKey(
+      {
+        name: 'RSASSA-PKCS1-v1_5',
+        modulusLength: 2048,
+        publicExponent: new Uint8Array([1, 0, 1]),
+        hash: 'SHA-256',
+      },
+      true,
+      ['sign', 'verify']
+    )) as CryptoKeyPair;
+
+    const publicKey = (await crypto.subtle.exportKey('jwk', keypair.publicKey)) as JsonWebKey;
+    const privateKey = (await crypto.subtle.exportKey('jwk', keypair.privateKey)) as JsonWebKey;
+    const kid = await generateKID(JSON.stringify(publicKey));
+
+    // Store only public key and kid in KV (secure)
+    await env.KEY_STORAGE.put(KV_SIGNING_KEY, JSON.stringify({ public: publicKey, kid: kid }));
+
+    console.log(
+      'SECURITY WARNING: Private key generated but not stored. You must manually set RSA_PRIVATE_KEY secret.'
+    );
+    console.log('Run: wrangler secret put RSA_PRIVATE_KEY');
+    console.log('Private key JWK:', JSON.stringify(privateKey));
+
+    return { keypair, publicKey, privateKey, kid };
+  } catch (e) {
+    console.log('failed to generate keyset', e);
+    throw new Error('failed to generate keyset');
+  }
+}
+
+/**
+ * Get the public key in JWK format
+ *
+ * @param env - Environment bindings
+ * @returns Public key in JWK format with kid
+ */
+export async function loadPublicKey(env: Env): Promise<JWK> {
+  // If the JWK values are already in KV then just return that
+  const key = await env.KEY_STORAGE.get<StoredKey>(KV_SIGNING_KEY, 'json');
+  if (key) {
+    return { kid: key.kid, ...(key.public as Omit<JWK, 'kid'>) };
+  }
+
+  // Otherwise generate keys and store the public key in KV
+  const { kid, publicKey } = await generateKeys(env);
+  return { kid, ...(publicKey as Omit<JWK, 'kid'>) };
+}

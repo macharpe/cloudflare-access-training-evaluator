@@ -6,12 +6,22 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "format": "prettier --write '**/*.{js,css,json,md}'"
+    "format": "prettier --write '**/*.{ts,js,css,json,md}'",
+    "type-check": "tsc --noEmit",
+    "type-check:watch": "tsc --noEmit --watch",
+    "lint": "eslint 'src/**/*.{ts,js}'",
+    "dev": "wrangler dev",
+    "deploy": "npm run type-check && wrangler deploy"
   },
   "author": "James Royal <jroyal@cloudflare.com>",
   "license": "MIT",
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20251008.0",
+    "@types/node": "^24.7.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.0",
+    "@typescript-eslint/parser": "^8.46.0",
     "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
     "wrangler": "^4.28.0"
   }
 }
