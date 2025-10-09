@@ -5,9 +5,9 @@
  * for observability and performance monitoring.
  */
 
-import type { Env } from '../types';
-import { sanitizeForLogging } from './validation.js';
-import { getCacheStats } from './cache.js';
+import type { Env } from '../types'
+import { sanitizeForLogging } from './validation.js'
+import { getCacheStats } from './cache.js'
 
 /**
  * Log levels
@@ -17,38 +17,38 @@ export const LOG_LEVELS = {
   WARN: 'warn',
   INFO: 'info',
   DEBUG: 'debug',
-} as const;
+} as const
 
-type LogLevel = (typeof LOG_LEVELS)[keyof typeof LOG_LEVELS];
+type LogLevel = (typeof LOG_LEVELS)[keyof typeof LOG_LEVELS]
 
 /**
  * Metrics structure
  */
 interface MetricsData {
   requests: {
-    total: number;
-    successful: number;
-    failed: number;
-    byEndpoint: Record<string, number>;
-  };
+    total: number
+    successful: number
+    failed: number
+    byEndpoint: Record<string, number>
+  }
   auth: {
-    attempts: number;
-    successes: number;
-    failures: number;
-  };
+    attempts: number
+    successes: number
+    failures: number
+  }
   database: {
-    queries: number;
-    errors: number;
-  };
+    queries: number
+    errors: number
+  }
   cache: {
-    hits: number;
-    misses: number;
-  };
+    hits: number
+    misses: number
+  }
   okta: {
-    apiCalls: number;
-    usersSynced: number;
-    errors: number;
-  };
+    apiCalls: number
+    usersSynced: number
+    errors: number
+  }
 }
 
 /**
@@ -79,7 +79,7 @@ const metrics: MetricsData = {
     usersSynced: 0,
     errors: 0,
   },
-};
+}
 
 /**
  * Structured log entry
@@ -93,29 +93,29 @@ export function structuredLog(
   level: LogLevel,
   message: string,
   metadata: Record<string, unknown> = {},
-  env?: Partial<Env>
+  env?: Partial<Env>,
 ): void {
   const logEntry: Record<string, unknown> = {
     timestamp: new Date().toISOString(),
     level: level.toUpperCase(),
     message: sanitizeForLogging(message),
     ...metadata,
-  };
+  }
 
   // Add request ID if available
   if (metadata['requestId'] && typeof metadata['requestId'] === 'string') {
-    logEntry['requestId'] = sanitizeForLogging(metadata['requestId']);
+    logEntry['requestId'] = sanitizeForLogging(metadata['requestId'])
   }
 
   // Log based on level and debug mode
   if (level === LOG_LEVELS.ERROR) {
-    console.error(JSON.stringify(logEntry));
+    console.error(JSON.stringify(logEntry))
   } else if (level === LOG_LEVELS.WARN) {
-    console.warn(JSON.stringify(logEntry));
+    console.warn(JSON.stringify(logEntry))
   } else if (level === LOG_LEVELS.DEBUG && env?.DEBUG) {
-    console.log(JSON.stringify(logEntry));
+    console.log(JSON.stringify(logEntry))
   } else if (level === LOG_LEVELS.INFO) {
-    console.log(JSON.stringify(logEntry));
+    console.log(JSON.stringify(logEntry))
   }
 }
 
@@ -133,19 +133,19 @@ export function logRequest(
   method: string,
   status: number,
   duration: number,
-  env?: Partial<Env>
+  env?: Partial<Env>,
 ): void {
-  metrics.requests.total++;
+  metrics.requests.total++
 
   if (status >= 200 && status < 400) {
-    metrics.requests.successful++;
+    metrics.requests.successful++
   } else {
-    metrics.requests.failed++;
+    metrics.requests.failed++
   }
 
-  const endpointKey = `${method} ${endpoint}`;
+  const endpointKey = `${method} ${endpoint}`
   metrics.requests.byEndpoint[endpointKey] =
-    (metrics.requests.byEndpoint[endpointKey] || 0) + 1;
+    (metrics.requests.byEndpoint[endpointKey] || 0) + 1
 
   structuredLog(
     LOG_LEVELS.INFO,
@@ -158,11 +158,14 @@ export function logRequest(
       metrics: {
         totalRequests: metrics.requests.total,
         successRate:
-          ((metrics.requests.successful / metrics.requests.total) * 100).toFixed(2) + '%',
+          (
+            (metrics.requests.successful / metrics.requests.total) *
+            100
+          ).toFixed(2) + '%',
       },
     },
-    env
-  );
+    env,
+  )
 }
 
 /**
@@ -175,12 +178,12 @@ export function logRequest(
 export function logAuth(
   success: boolean,
   reason: string | null = null,
-  env?: Partial<Env>
+  env?: Partial<Env>,
 ): void {
-  metrics.auth.attempts++;
+  metrics.auth.attempts++
 
   if (success) {
-    metrics.auth.successes++;
+    metrics.auth.successes++
     structuredLog(
       LOG_LEVELS.INFO,
       'Authentication successful',
@@ -189,13 +192,15 @@ export function logAuth(
           attempts: metrics.auth.attempts,
           successes: metrics.auth.successes,
           successRate:
-            ((metrics.auth.successes / metrics.auth.attempts) * 100).toFixed(2) + '%',
+            ((metrics.auth.successes / metrics.auth.attempts) * 100).toFixed(
+              2,
+            ) + '%',
         },
       },
-      env
-    );
+      env,
+    )
   } else {
-    metrics.auth.failures++;
+    metrics.auth.failures++
     structuredLog(
       LOG_LEVELS.WARN,
       'Authentication failed',
@@ -205,11 +210,12 @@ export function logAuth(
           attempts: metrics.auth.attempts,
           failures: metrics.auth.failures,
           failureRate:
-            ((metrics.auth.failures / metrics.auth.attempts) * 100).toFixed(2) + '%',
+            ((metrics.auth.failures / metrics.auth.attempts) * 100).toFixed(2) +
+            '%',
         },
       },
-      env
-    );
+      env,
+    )
   }
 }
 
@@ -227,12 +233,12 @@ export function logDatabase(
   success: boolean,
   duration: number,
   details: Record<string, unknown> = {},
-  env?: Partial<Env>
+  env?: Partial<Env>,
 ): void {
-  metrics.database.queries++;
+  metrics.database.queries++
 
   if (!success) {
-    metrics.database.errors++;
+    metrics.database.errors++
   }
 
   structuredLog(
@@ -247,11 +253,13 @@ export function logDatabase(
         totalQueries: metrics.database.queries,
         errors: metrics.database.errors,
         errorRate:
-          ((metrics.database.errors / metrics.database.queries) * 100).toFixed(2) + '%',
+          ((metrics.database.errors / metrics.database.queries) * 100).toFixed(
+            2,
+          ) + '%',
       },
     },
-    env
-  );
+    env,
+  )
 }
 
 /**
@@ -263,13 +271,14 @@ export function logDatabase(
  */
 export function logCache(hit: boolean, key: string, env?: Partial<Env>): void {
   if (hit) {
-    metrics.cache.hits++;
+    metrics.cache.hits++
   } else {
-    metrics.cache.misses++;
+    metrics.cache.misses++
   }
 
-  const total = metrics.cache.hits + metrics.cache.misses;
-  const hitRate = total > 0 ? ((metrics.cache.hits / total) * 100).toFixed(2) : '0.00';
+  const total = metrics.cache.hits + metrics.cache.misses
+  const hitRate =
+    total > 0 ? ((metrics.cache.hits / total) * 100).toFixed(2) : '0.00'
 
   structuredLog(
     LOG_LEVELS.DEBUG,
@@ -283,8 +292,8 @@ export function logCache(hit: boolean, key: string, env?: Partial<Env>): void {
         ...getCacheStats(),
       },
     },
-    env
-  );
+    env,
+  )
 }
 
 /**
@@ -299,16 +308,16 @@ export function logOkta(
   operation: string,
   success: boolean,
   details: Record<string, unknown> = {},
-  env?: Partial<Env>
+  env?: Partial<Env>,
 ): void {
-  metrics.okta.apiCalls++;
+  metrics.okta.apiCalls++
 
   if (!success) {
-    metrics.okta.errors++;
+    metrics.okta.errors++
   }
 
   if (details['usersSynced'] && typeof details['usersSynced'] === 'number') {
-    metrics.okta.usersSynced += details['usersSynced'];
+    metrics.okta.usersSynced += details['usersSynced']
   }
 
   structuredLog(
@@ -322,11 +331,13 @@ export function logOkta(
         apiCalls: metrics.okta.apiCalls,
         errors: metrics.okta.errors,
         totalUsersSynced: metrics.okta.usersSynced,
-        errorRate: ((metrics.okta.errors / metrics.okta.apiCalls) * 100).toFixed(2) + '%',
+        errorRate:
+          ((metrics.okta.errors / metrics.okta.apiCalls) * 100).toFixed(2) +
+          '%',
       },
     },
-    env
-  );
+    env,
+  )
 }
 
 /**
@@ -334,7 +345,10 @@ export function logOkta(
  *
  * @returns Current metrics with timestamp
  */
-export function getMetrics(): MetricsData & { timestamp: string; cache: ReturnType<typeof getCacheStats> & { hits: number; misses: number } } {
+export function getMetrics(): MetricsData & {
+  timestamp: string
+  cache: ReturnType<typeof getCacheStats> & { hits: number; misses: number }
+} {
   return {
     ...metrics,
     timestamp: new Date().toISOString(),
@@ -342,18 +356,18 @@ export function getMetrics(): MetricsData & { timestamp: string; cache: ReturnTy
       ...metrics.cache,
       ...getCacheStats(),
     },
-  };
+  }
 }
 
 /**
  * Reset all metrics (useful for testing)
  */
 export function resetMetrics(): void {
-  metrics.requests = { total: 0, successful: 0, failed: 0, byEndpoint: {} };
-  metrics.auth = { attempts: 0, successes: 0, failures: 0 };
-  metrics.database = { queries: 0, errors: 0 };
-  metrics.cache = { hits: 0, misses: 0 };
-  metrics.okta = { apiCalls: 0, usersSynced: 0, errors: 0 };
+  metrics.requests = { total: 0, successful: 0, failed: 0, byEndpoint: {} }
+  metrics.auth = { attempts: 0, successes: 0, failures: 0 }
+  metrics.database = { queries: 0, errors: 0 }
+  metrics.cache = { hits: 0, misses: 0 }
+  metrics.okta = { apiCalls: 0, usersSynced: 0, errors: 0 }
 }
 
 /**
@@ -367,9 +381,9 @@ export function resetMetrics(): void {
 export function logPerformance(
   operation: string,
   startTime: number,
-  env?: Partial<Env>
+  env?: Partial<Env>,
 ): number {
-  const duration = Date.now() - startTime;
+  const duration = Date.now() - startTime
 
   structuredLog(
     LOG_LEVELS.DEBUG,
@@ -379,8 +393,8 @@ export function logPerformance(
       duration,
       timestamp: new Date().toISOString(),
     },
-    env
-  );
+    env,
+  )
 
-  return duration;
+  return duration
 }

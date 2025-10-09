@@ -5,9 +5,9 @@
  * and External Evaluation response signing.
  */
 
-import type { Env, DecodedJWT, AccessClaims, JWKS } from '../types';
-import { base64url, asciiToUint8Array } from '../utils/encoding.js';
-import { cachedFetch, CACHE_CONFIG } from '../utils/cache.js';
+import type { Env, DecodedJWT, AccessClaims, JWKS } from '../types'
+import { base64url, asciiToUint8Array } from '../utils/encoding.js'
+import { cachedFetch, CACHE_CONFIG } from '../utils/cache.js'
 
 /**
  * Parse a JWT into its respective pieces
@@ -18,15 +18,15 @@ import { cachedFetch, CACHE_CONFIG } from '../utils/cache.js';
  * @returns Parsed JWT components
  */
 export function parseJWT(token: string): DecodedJWT {
-  const tokenParts = token.split('.');
+  const tokenParts = token.split('.')
 
   if (tokenParts.length !== 3) {
-    throw new Error('token must have 3 parts');
+    throw new Error('token must have 3 parts')
   }
 
-  const enc = new TextDecoder('utf-8');
-  const header = JSON.parse(enc.decode(base64url.parse(tokenParts[0]!)));
-  const payload = JSON.parse(enc.decode(base64url.parse(tokenParts[1]!)));
+  const enc = new TextDecoder('utf-8')
+  const header = JSON.parse(enc.decode(base64url.parse(tokenParts[0]!)))
+  const payload = JSON.parse(enc.decode(base64url.parse(tokenParts[1]!)))
 
   return {
     header,
@@ -37,7 +37,7 @@ export function parseJWT(token: string): DecodedJWT {
       payload: tokenParts[1]!,
       signature: tokenParts[2]!,
     },
-  };
+  }
 }
 
 /**
@@ -47,36 +47,39 @@ export function parseJWT(token: string): DecodedJWT {
  * @param token - The token to be validated
  * @returns Returns the payload if valid, or throws an error if not
  */
-export async function verifyToken(env: Env, token: string): Promise<AccessClaims> {
+export async function verifyToken(
+  env: Env,
+  token: string,
+): Promise<AccessClaims> {
   if (env.DEBUG) {
-    console.log('incoming JWT', token);
+    console.log('incoming JWT', token)
   }
 
-  const jwt = parseJWT(token);
-  const key = await fetchAccessPublicKey(env, jwt.header.kid);
+  const jwt = parseJWT(token)
+  const key = await fetchAccessPublicKey(env, jwt.header.kid)
 
-  const toBeValidated = `${jwt.raw.header}.${jwt.raw.payload}`;
+  const toBeValidated = `${jwt.raw.header}.${jwt.raw.payload}`
 
   const verified = await crypto.subtle.verify(
     'RSASSA-PKCS1-v1_5',
     key,
     base64url.parse(jwt.signature),
-    asciiToUint8Array(toBeValidated)
-  );
+    asciiToUint8Array(toBeValidated),
+  )
 
   if (!verified) {
-    throw new Error('failed to verify token');
+    throw new Error('failed to verify token')
   }
 
-  const claims = jwt.payload;
-  const now = Math.floor(Date.now() / 1000);
+  const claims = jwt.payload
+  const now = Math.floor(Date.now() / 1000)
 
   // Validate expiration
   if (claims.exp < now) {
-    throw new Error('expired token');
+    throw new Error('expired token')
   }
 
-  return claims;
+  return claims
 }
 
 /**
@@ -86,23 +89,34 @@ export async function verifyToken(env: Env, token: string): Promise<AccessClaims
  * @param payload - JWT payload
  * @returns Signed JWT string
  */
-export async function signJWT(env: Env, payload: Record<string, unknown>): Promise<string> {
-  const { kid, privateKey } = await loadSigningKey(env);
+export async function signJWT(
+  env: Env,
+  payload: Record<string, unknown>,
+): Promise<string> {
+  const { kid, privateKey } = await loadSigningKey(env)
 
   const header = {
     alg: 'RS256',
     kid: kid,
-  };
+  }
 
-  const encHeader = base64url.stringify(asciiToUint8Array(JSON.stringify(header)));
-  const encPayload = base64url.stringify(asciiToUint8Array(JSON.stringify(payload)));
-  const encoded = `${encHeader}.${encPayload}`;
+  const encHeader = base64url.stringify(
+    asciiToUint8Array(JSON.stringify(header)),
+  )
+  const encPayload = base64url.stringify(
+    asciiToUint8Array(JSON.stringify(payload)),
+  )
+  const encoded = `${encHeader}.${encPayload}`
 
   const sig = new Uint8Array(
-    await crypto.subtle.sign('RSASSA-PKCS1-v1_5', privateKey, asciiToUint8Array(encoded))
-  );
+    await crypto.subtle.sign(
+      'RSASSA-PKCS1-v1_5',
+      privateKey,
+      asciiToUint8Array(encoded),
+    ),
+  )
 
-  return `${encoded}.${base64url.stringify(sig)}`;
+  return `${encoded}.${base64url.stringify(sig)}`
 }
 
 /**
@@ -115,28 +129,34 @@ export async function signJWT(env: Env, payload: Record<string, unknown>): Promi
 async function fetchAccessPublicKey(env: Env, kid: string): Promise<CryptoKey> {
   // Validate TEAM_DOMAIN configuration
   if (!env.TEAM_DOMAIN || !env.TEAM_DOMAIN.includes('.')) {
-    throw new Error('Invalid TEAM_DOMAIN configuration');
+    throw new Error('Invalid TEAM_DOMAIN configuration')
   }
 
-  const cacheKey = `${CACHE_CONFIG.ACCESS_KEYS.key}_${env.TEAM_DOMAIN}`;
-  const url = `https://${env.TEAM_DOMAIN}/cdn-cgi/access/certs`;
+  const cacheKey = `${CACHE_CONFIG.ACCESS_KEYS.key}_${env.TEAM_DOMAIN}`
+  const url = `https://${env.TEAM_DOMAIN}/cdn-cgi/access/certs`
 
   // Use cached fetch for Access public keys
-  const resp = await cachedFetch<JWKS>(url, {}, cacheKey, CACHE_CONFIG.ACCESS_KEYS.ttl, env);
+  const resp = await cachedFetch<JWKS>(
+    url,
+    {},
+    cacheKey,
+    CACHE_CONFIG.ACCESS_KEYS.ttl,
+    env,
+  )
 
   if (!resp.ok) {
     throw new Error(
-      `Failed to fetch Access public keys: ${resp.status} ${resp.statusText || ''}`
-    );
+      `Failed to fetch Access public keys: ${resp.status} ${resp.statusText || ''}`,
+    )
   }
 
-  const keys = (await resp.json()) as JWKS;
+  const keys = (await resp.json()) as JWKS
 
   // Optimized: Use find() instead of filter()[0] for early termination
-  const jwk = keys.keys.find((key: { kid: string }) => key.kid === kid);
+  const jwk = keys.keys.find((key: { kid: string }) => key.kid === kid)
 
   if (!jwk) {
-    throw new Error(`Public key not found for kid: ${kid}`);
+    throw new Error(`Public key not found for kid: ${kid}`)
   }
 
   const key = await crypto.subtle.importKey(
@@ -147,18 +167,18 @@ async function fetchAccessPublicKey(env: Env, kid: string): Promise<CryptoKey> {
       hash: 'SHA-256',
     },
     false,
-    ['verify']
-  );
+    ['verify'],
+  )
 
-  return key;
+  return key
 }
 
 /**
  * Stored keyset structure
  */
 interface StoredKeyset {
-  kid: string;
-  public: JsonWebKey;
+  kid: string
+  public: JsonWebKey
 }
 
 /**
@@ -167,24 +187,31 @@ interface StoredKeyset {
  * @param env - Environment bindings
  * @returns Key ID and private key
  */
-async function loadSigningKey(env: Env): Promise<{ kid: string; privateKey: CryptoKey }> {
+async function loadSigningKey(
+  env: Env,
+): Promise<{ kid: string; privateKey: CryptoKey }> {
   // Get kid from KV (public key metadata)
-  const publicKeyset = await env.KEY_STORAGE.get<StoredKeyset>('external_auth_keys', 'json');
+  const publicKeyset = await env.KEY_STORAGE.get<StoredKeyset>(
+    'external_auth_keys',
+    'json',
+  )
 
   if (!publicKeyset) {
-    console.log('Key set has not been generated. Call /keys first.');
-    throw new Error('cannot find signing key');
+    console.log('Key set has not been generated. Call /keys first.')
+    throw new Error('cannot find signing key')
   }
 
   // Get private key from Workers Secret
-  const privateKeyJWK = env.RSA_PRIVATE_KEY;
+  const privateKeyJWK = env.RSA_PRIVATE_KEY
   if (!privateKeyJWK) {
-    console.log('Private key secret not configured. Run: wrangler secret put RSA_PRIVATE_KEY');
-    throw new Error('RSA_PRIVATE_KEY secret not set');
+    console.log(
+      'Private key secret not configured. Run: wrangler secret put RSA_PRIVATE_KEY',
+    )
+    throw new Error('RSA_PRIVATE_KEY secret not set')
   }
 
   try {
-    const privateKeyObject = JSON.parse(privateKeyJWK) as JsonWebKey;
+    const privateKeyObject = JSON.parse(privateKeyJWK) as JsonWebKey
     const signingKey = await crypto.subtle.importKey(
       'jwk',
       privateKeyObject,
@@ -193,12 +220,12 @@ async function loadSigningKey(env: Env): Promise<{ kid: string; privateKey: Cryp
         hash: 'SHA-256',
       },
       false,
-      ['sign']
-    );
+      ['sign'],
+    )
 
-    return { kid: publicKeyset.kid, privateKey: signingKey };
+    return { kid: publicKeyset.kid, privateKey: signingKey }
   } catch (e) {
-    console.log('Failed to parse or import private key from secret:', e);
-    throw new Error('invalid RSA_PRIVATE_KEY secret format');
+    console.log('Failed to parse or import private key from secret:', e)
+    throw new Error('invalid RSA_PRIVATE_KEY secret format')
   }
 }

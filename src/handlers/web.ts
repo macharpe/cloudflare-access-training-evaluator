@@ -4,24 +4,28 @@
  * Handles admin dashboard, training status updates, and system overview pages.
  */
 
-import type { Env, TrainingStatus, User } from '../types/index.js';
-import { updateUserTrainingStatusByEmail } from '../database/training.js';
-import { generateNonce, addCSPHeaders, createCSPHeaders } from '../security/csp.js';
+import type { Env, TrainingStatus, User } from '../types/index.js'
+import { updateUserTrainingStatusByEmail } from '../database/training.js'
+import {
+  generateNonce,
+  addCSPHeaders,
+  createCSPHeaders,
+} from '../security/csp.js'
 
 /**
  * Update training request body
  */
 interface UpdateTrainingBody {
-  email: string;
-  status: string;
+  email: string
+  status: string
 }
 
 /**
  * Update training response
  */
 interface UpdateTrainingResponse {
-  success: boolean;
-  message: string;
+  success: boolean
+  message: string
 }
 
 /**
@@ -33,13 +37,13 @@ interface UpdateTrainingResponse {
 async function getAllUsers(env: Env): Promise<User[]> {
   try {
     const result = await env.DB.prepare(
-      'SELECT id, username, first_name, primary_email, training_status, created_at, updated_at FROM users ORDER BY username'
-    ).all<User>();
+      'SELECT id, username, first_name, primary_email, training_status, created_at, updated_at FROM users ORDER BY username',
+    ).all<User>()
 
-    return result.results || [];
+    return result.results || []
   } catch (error) {
-    console.error('Database error:', error);
-    return [];
+    console.error('Database error:', error)
+    return []
   }
 }
 
@@ -50,11 +54,11 @@ async function getAllUsers(env: Env): Promise<User[]> {
  * @returns HTML response
  */
 export async function handleWebInterface(env: Env): Promise<Response> {
-  const users = await getAllUsers(env);
+  const users = await getAllUsers(env)
 
   // Generate nonces for inline scripts and styles
-  const styleNonce = generateNonce();
-  const scriptNonce = generateNonce();
+  const styleNonce = generateNonce()
+  const scriptNonce = generateNonce()
 
   const html = `
 <!DOCTYPE html>
@@ -840,7 +844,7 @@ export async function handleWebInterface(env: Env): Promise<Response> {
                                 </td>
                                 <td class="timestamp">${new Date(user.updated_at).toLocaleString()}</td>
                             </tr>
-                        `
+                        `,
                           )
                           .join('')}
                     </tbody>
@@ -1332,14 +1336,14 @@ export async function handleWebInterface(env: Env): Promise<Response> {
     </script>
 </body>
 </html>
-  `;
+  `
 
   const response = new Response(html, {
     headers: { 'content-type': 'text/html' },
-  });
+  })
 
   // Add CSP headers with nonces
-  return addCSPHeaders(response, env, scriptNonce, styleNonce);
+  return addCSPHeaders(response, env, scriptNonce, styleNonce)
 }
 
 /**
@@ -1349,73 +1353,84 @@ export async function handleWebInterface(env: Env): Promise<Response> {
  * @param request - HTTP request
  * @returns JSON response
  */
-export async function handleUpdateTraining(env: Env, request: Request): Promise<Response> {
+export async function handleUpdateTraining(
+  env: Env,
+  request: Request,
+): Promise<Response> {
   try {
-    const body = (await request.json()) as UpdateTrainingBody;
-    const { email, status } = body;
+    const body = (await request.json()) as UpdateTrainingBody
+    const { email, status } = body
 
     // Create secure headers for JSON responses
     const secureHeaders: Record<string, string> = {
       'content-type': 'application/json',
       ...createCSPHeaders(env),
-    };
+    }
 
     if (!email || !status) {
       const response: UpdateTrainingResponse = {
         success: false,
         message: 'Email and status are required',
-      };
+      }
       return new Response(JSON.stringify(response), {
         status: 400,
         headers: secureHeaders,
-      });
+      })
     }
 
-    const validStatuses: TrainingStatus[] = ['not started', 'started', 'completed'];
+    const validStatuses: TrainingStatus[] = [
+      'not started',
+      'started',
+      'completed',
+    ]
     if (!validStatuses.includes(status as TrainingStatus)) {
       const response: UpdateTrainingResponse = {
         success: false,
         message: 'Invalid status value',
-      };
+      }
       return new Response(JSON.stringify(response), {
         status: 400,
         headers: secureHeaders,
-      });
+      })
     }
 
-    const updated = await updateUserTrainingStatusByEmail(env, email, status as TrainingStatus);
+    const updated = await updateUserTrainingStatusByEmail(
+      env,
+      email,
+      status as TrainingStatus,
+    )
 
     if (updated) {
       const response: UpdateTrainingResponse = {
         success: true,
         message: 'Training status updated successfully',
-      };
+      }
       return new Response(JSON.stringify(response), {
         headers: secureHeaders,
-      });
+      })
     } else {
       const response: UpdateTrainingResponse = {
         success: false,
         message: 'User not found or update failed',
-      };
+      }
       return new Response(JSON.stringify(response), {
         status: 404,
         headers: secureHeaders,
-      });
+      })
     }
   } catch (error) {
-    console.error('Update training error:', error);
+    console.error('Update training error:', error)
     const response: UpdateTrainingResponse = {
       success: false,
       message: 'Internal server error',
-    };
+    }
     return new Response(JSON.stringify(response), {
       status: 500,
       headers: {
         'content-type': 'application/json',
         ...createCSPHeaders(env),
       },
-    });
+    })
   }
 }
 
@@ -1427,7 +1442,7 @@ export async function handleUpdateTraining(env: Env, request: Request): Promise<
  */
 export async function handleSystemOverview(env: Env): Promise<Response> {
   // Generate nonces for inline scripts and styles
-  const styleNonce = generateNonce();
+  const styleNonce = generateNonce()
 
   const html = `
 <!DOCTYPE html>
@@ -1719,12 +1734,12 @@ export async function handleSystemOverview(env: Env): Promise<Response> {
     </div>
 </body>
 </html>
-  `;
+  `
 
   const response = new Response(html, {
     headers: { 'content-type': 'text/html' },
-  });
+  })
 
   // Add CSP headers with nonces
-  return addCSPHeaders(response, env, null, styleNonce);
+  return addCSPHeaders(response, env, null, styleNonce)
 }

@@ -5,14 +5,14 @@
  * and improve Worker performance.
  */
 
-import type { CacheEntry, Env } from '../types';
+import type { CacheEntry, Env } from '../types'
 
 /**
  * In-memory cache storage
  *
  * Note: Cache resets on Worker cold starts (expected behavior)
  */
-const memoryCache = new Map<string, CacheEntry<unknown>>();
+const memoryCache = new Map<string, CacheEntry<unknown>>()
 
 /**
  * Cache configuration constants
@@ -30,7 +30,7 @@ export const CACHE_CONFIG = {
     key: 'okta_groups',
     ttl: 1800, // 30 minutes
   },
-} as const;
+} as const
 
 /**
  * Get item from cache
@@ -39,19 +39,19 @@ export const CACHE_CONFIG = {
  * @returns Cached value or null if not found/expired
  */
 export function getCached<T>(key: string): T | null {
-  const cached = memoryCache.get(key) as CacheEntry<T> | undefined;
+  const cached = memoryCache.get(key) as CacheEntry<T> | undefined
 
   if (!cached) {
-    return null;
+    return null
   }
 
   // Check if expired
   if (Date.now() > cached.expiresAt) {
-    memoryCache.delete(key);
-    return null;
+    memoryCache.delete(key)
+    return null
   }
 
-  return cached.value;
+  return cached.value
 }
 
 /**
@@ -62,8 +62,8 @@ export function getCached<T>(key: string): T | null {
  * @param ttlSeconds - Time to live in seconds
  */
 export function setCache<T>(key: string, value: T, ttlSeconds: number): void {
-  const expiresAt = Date.now() + ttlSeconds * 1000;
-  memoryCache.set(key, { value, expiresAt } as CacheEntry<unknown>);
+  const expiresAt = Date.now() + ttlSeconds * 1000
+  memoryCache.set(key, { value, expiresAt } as CacheEntry<unknown>)
 }
 
 /**
@@ -72,14 +72,14 @@ export function setCache<T>(key: string, value: T, ttlSeconds: number): void {
  * @param key - Cache key to clear
  */
 export function clearCache(key: string): void {
-  memoryCache.delete(key);
+  memoryCache.delete(key)
 }
 
 /**
  * Clear all cache entries
  */
 export function clearAllCache(): void {
-  memoryCache.clear();
+  memoryCache.clear()
 }
 
 /**
@@ -87,16 +87,20 @@ export function clearAllCache(): void {
  *
  * @returns Cache statistics
  */
-export function getCacheStats(): { total: number; active: number; expired: number } {
-  const now = Date.now();
-  let expired = 0;
-  let active = 0;
+export function getCacheStats(): {
+  total: number
+  active: number
+  expired: number
+} {
+  const now = Date.now()
+  let expired = 0
+  let active = 0
 
   for (const [, cached] of memoryCache.entries()) {
     if (now > cached.expiresAt) {
-      expired++;
+      expired++
     } else {
-      active++;
+      active++
     }
   }
 
@@ -104,18 +108,18 @@ export function getCacheStats(): { total: number; active: number; expired: numbe
     total: memoryCache.size,
     active,
     expired,
-  };
+  }
 }
 
 /**
  * Response-like object for cached data
  */
 interface CachedResponse<T> {
-  ok: boolean;
-  status: number;
-  statusText?: string;
-  json: () => Promise<T>;
-  headers: Headers;
+  ok: boolean
+  status: number
+  statusText?: string
+  json: () => Promise<T>
+  headers: Headers
 }
 
 /**
@@ -133,14 +137,14 @@ export async function cachedFetch<T>(
   options: RequestInit,
   cacheKey: string,
   ttlSeconds: number = 300,
-  env?: Env
+  env?: Env,
 ): Promise<CachedResponse<T> | Response> {
   // Try to get from cache first
-  const cached = getCached<T>(cacheKey);
+  const cached = getCached<T>(cacheKey)
   if (cached) {
     // Dynamic import to avoid circular dependency
-    const { logCache } = await import('./logging.js');
-    logCache(true, cacheKey, env);
+    const { logCache } = await import('./logging.js')
+    logCache(true, cacheKey, env)
 
     // Return a Response-like object for cached data
     return {
@@ -148,19 +152,19 @@ export async function cachedFetch<T>(
       status: 200,
       json: async () => cached,
       headers: new Headers({ 'x-cache': 'HIT' }),
-    };
+    }
   }
 
   // Dynamic import to avoid circular dependency
-  const { logCache } = await import('./logging.js');
-  logCache(false, cacheKey, env);
+  const { logCache } = await import('./logging.js')
+  logCache(false, cacheKey, env)
 
   // Fetch fresh data
-  const response = await fetch(url, options);
+  const response = await fetch(url, options)
 
   if (response.ok) {
-    const data = (await response.json()) as T;
-    setCache(cacheKey, data, ttlSeconds);
+    const data = (await response.json()) as T
+    setCache(cacheKey, data, ttlSeconds)
 
     // Return enhanced response
     return {
@@ -168,10 +172,13 @@ export async function cachedFetch<T>(
       status: response.status,
       statusText: response.statusText,
       json: async () => data,
-      headers: new Headers([...Array.from(response.headers.entries()), ['x-cache', 'MISS']]),
-    };
+      headers: new Headers([
+        ...Array.from(response.headers.entries()),
+        ['x-cache', 'MISS'],
+      ]),
+    }
   }
 
   // Don't cache errors, return original response
-  return response;
+  return response
 }

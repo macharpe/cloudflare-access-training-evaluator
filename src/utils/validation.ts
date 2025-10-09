@@ -13,12 +13,12 @@
  */
 export function isValidEmail(email: unknown): email is string {
   if (!email || typeof email !== 'string') {
-    return false;
+    return false
   }
 
   // RFC 5322 compliant email regex (simplified but robust)
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email) && email.length <= 254; // RFC limit
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email) && email.length <= 254 // RFC limit
 }
 
 /**
@@ -30,31 +30,31 @@ export function isValidEmail(email: unknown): email is string {
  */
 export function extractUsername(email: string): string {
   if (!isValidEmail(email)) {
-    throw new Error('Invalid email format');
+    throw new Error('Invalid email format')
   }
 
-  const parts = email.split('@');
-  const username = parts[0]?.toLowerCase().trim();
+  const parts = email.split('@')
+  const username = parts[0]?.toLowerCase().trim()
 
   if (!username) {
-    throw new Error('Username cannot be empty');
+    throw new Error('Username cannot be empty')
   }
 
   // Additional username validation
   if (username.length === 0) {
-    throw new Error('Username cannot be empty');
+    throw new Error('Username cannot be empty')
   }
 
   if (username.length > 64) {
-    throw new Error('Username too long (max 64 characters)');
+    throw new Error('Username too long (max 64 characters)')
   }
 
   // Ensure username contains only valid characters
   if (!/^[a-z0-9._-]+$/.test(username)) {
-    throw new Error('Username contains invalid characters');
+    throw new Error('Username contains invalid characters')
   }
 
-  return username;
+  return username
 }
 
 /**
@@ -64,8 +64,8 @@ export function extractUsername(email: string): string {
  * @returns True if valid status
  */
 export function isValidTrainingStatus(status: unknown): boolean {
-  const validStatuses = ['not started', 'started', 'completed'];
-  return typeof status === 'string' && validStatuses.includes(status);
+  const validStatuses = ['not started', 'started', 'completed']
+  return typeof status === 'string' && validStatuses.includes(status)
 }
 
 /**
@@ -76,14 +76,14 @@ export function isValidTrainingStatus(status: unknown): boolean {
  */
 export function sanitizeForLogging(input: unknown): string {
   if (!input || typeof input !== 'string') {
-    return String(input || '');
+    return String(input || '')
   }
 
   // Remove control characters and limit length for logging
   return input
     .replace(/[\r\n\t]/g, ' ')
     .replace(/[^\x20-\x7E]/g, '')
-    .substring(0, 200);
+    .substring(0, 200)
 }
 
 /**
@@ -94,13 +94,13 @@ export function sanitizeForLogging(input: unknown): string {
  */
 export function isValidOktaDomain(domain: unknown): domain is string {
   if (!domain || typeof domain !== 'string') {
-    return false;
+    return false
   }
 
   // Basic domain validation for Okta
   const domainRegex =
-    /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
-  return domainRegex.test(domain) && domain.includes('.');
+    /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
+  return domainRegex.test(domain) && domain.includes('.')
 }
 
 /**
@@ -111,9 +111,9 @@ export function isValidOktaDomain(domain: unknown): domain is string {
  */
 export function isValidGroupId(groupId: unknown): groupId is string {
   if (!groupId || typeof groupId !== 'string') {
-    return false;
+    return false
   }
 
   // Okta group IDs are typically alphanumeric with some special chars
-  return /^[a-zA-Z0-9_-]{1,255}$/.test(groupId);
+  return /^[a-zA-Z0-9_-]{1,255}$/.test(groupId)
 }

@@ -15,15 +15,15 @@ export const base64url = {
    * @returns Base64url encoded string
    */
   stringify(a: Uint8Array): string {
-    const base64string = btoa(String.fromCharCode(...Array.from(a)));
+    const base64string = btoa(String.fromCharCode(...Array.from(a)))
     return base64string.replace(/[=+/]/g, (char) => {
       const lookup: Record<string, string> = {
         '=': '',
         '+': '-',
         '/': '_',
-      };
-      return lookup[char] ?? char;
-    });
+      }
+      return lookup[char] ?? char
+    })
   },
 
   /**
@@ -33,12 +33,15 @@ export const base64url = {
    * @returns Decoded byte array
    */
   parse(s: string): Uint8Array {
-    const normalized = s.replace(/-/g, '+').replace(/_/g, '/').replace(/\s/g, '');
+    const normalized = s
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .replace(/\s/g, '')
     return new Uint8Array(
-      Array.from(atob(normalized)).map((c) => c.charCodeAt(0))
-    );
+      Array.from(atob(normalized)).map((c) => c.charCodeAt(0)),
+    )
   },
-};
+}
 
 /**
  * Helper to convert ASCII string to byte array
@@ -49,9 +52,9 @@ export const base64url = {
  * @returns Byte array representation
  */
 export function asciiToUint8Array(str: string): Uint8Array {
-  const chars: number[] = [];
+  const chars: number[] = []
   for (let i = 0; i < str.length; ++i) {
-    chars.push(str.charCodeAt(i));
+    chars.push(str.charCodeAt(i))
   }
-  return new Uint8Array(chars);
+  return new Uint8Array(chars)
 }

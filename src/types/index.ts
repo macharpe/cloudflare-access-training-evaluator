@@ -12,20 +12,20 @@
  */
 export interface Env {
   // Environment Variables (from wrangler.jsonc vars)
-  TEAM_DOMAIN: string;
-  ADMIN_DOMAIN: string;
-  OKTA_DOMAIN: string;
-  DEBUG: boolean;
-  OKTA_FETCH_LIMIT?: number;
+  TEAM_DOMAIN: string
+  ADMIN_DOMAIN: string
+  OKTA_DOMAIN: string
+  DEBUG: boolean
+  OKTA_FETCH_LIMIT?: number
 
   // Secrets (configured via wrangler secret put)
-  RSA_PRIVATE_KEY: string;
-  OKTA_API_TOKEN: string;
-  ACCESS_APP_AUD: string;
+  RSA_PRIVATE_KEY: string
+  OKTA_API_TOKEN: string
+  ACCESS_APP_AUD: string
 
   // Cloudflare Bindings
-  KEY_STORAGE: KVNamespace;
-  DB: D1Database;
+  KEY_STORAGE: KVNamespace
+  DB: D1Database
 }
 
 /**
@@ -36,35 +36,35 @@ export interface Env {
  */
 export interface AccessClaims {
   /** User's email address from identity provider */
-  email: string;
+  email: string
 
   /** Token expiration timestamp (seconds since epoch) */
-  exp: number;
+  exp: number
 
   /** Token issued-at timestamp (seconds since epoch) */
-  iat: number;
+  iat: number
 
   /** Token nonce for replay protection */
-  nonce: string;
+  nonce: string
 
   /** Access Application Audience tag */
-  aud: string | string[];
+  aud: string | string[]
 
   /** Token issuer (Cloudflare Access domain) */
-  iss: string;
+  iss: string
 
   /** Subject (user ID) */
-  sub: string;
+  sub: string
 
   /** Identity information */
   identity: {
-    email: string;
-    name?: string;
-    groups?: string[];
-  };
+    email: string
+    name?: string
+    groups?: string[]
+  }
 
   /** Custom claims may be present */
-  [key: string]: unknown;
+  [key: string]: unknown
 }
 
 /**
@@ -73,14 +73,14 @@ export interface AccessClaims {
  * Generic JWT token structure with typed header, payload, and signature.
  */
 export interface DecodedJWT<T = AccessClaims> {
-  header: JWTHeader;
-  payload: T;
-  signature: string;
+  header: JWTHeader
+  payload: T
+  signature: string
   raw: {
-    header: string;
-    payload: string;
-    signature: string;
-  };
+    header: string
+    payload: string
+    signature: string
+  }
 }
 
 /**
@@ -90,13 +90,13 @@ export interface DecodedJWT<T = AccessClaims> {
  */
 export interface JWTHeader {
   /** Algorithm used for signing */
-  alg: string;
+  alg: string
 
   /** Key ID for signature verification */
-  kid: string;
+  kid: string
 
   /** Token type (always "JWT") */
-  typ: string;
+  typ: string
 }
 
 /**
@@ -107,22 +107,22 @@ export interface JWTHeader {
  */
 export interface JWK {
   /** Key type (e.g., "RSA") */
-  kty: string;
+  kty: string
 
   /** Key ID for identification */
-  kid: string;
+  kid: string
 
   /** Algorithm (e.g., "RS256") */
-  alg: string;
+  alg: string
 
   /** Key usage (e.g., "sig" for signature) */
-  use: string;
+  use: string
 
   /** RSA public exponent (base64url) */
-  e: string;
+  e: string
 
   /** RSA modulus (base64url) */
-  n: string;
+  n: string
 }
 
 /**
@@ -131,11 +131,11 @@ export interface JWK {
  * Collection of public keys from Cloudflare Access.
  */
 export interface JWKS {
-  keys: JWK[];
+  keys: JWK[]
   public_cert?: {
-    kid: string;
-    cert: string;
-  };
+    kid: string
+    cert: string
+  }
 }
 
 /**
@@ -143,7 +143,7 @@ export interface JWKS {
  *
  * Possible states for user training completion.
  */
-export type TrainingStatus = 'not started' | 'started' | 'completed';
+export type TrainingStatus = 'not started' | 'started' | 'completed'
 
 /**
  * User Database Record
@@ -151,13 +151,13 @@ export type TrainingStatus = 'not started' | 'started' | 'completed';
  * Represents a user in the D1 training database.
  */
 export interface User {
-  id: number;
-  username: string;
-  first_name: string | null;
-  primary_email: string | null;
-  training_status: TrainingStatus;
-  created_at: string;
-  updated_at: string;
+  id: number
+  username: string
+  first_name: string | null
+  primary_email: string | null
+  training_status: TrainingStatus
+  created_at: string
+  updated_at: string
 }
 
 /**
@@ -166,13 +166,13 @@ export interface User {
  * D1 database query result structure.
  */
 export interface D1Result<T> {
-  results: T[];
-  success: boolean;
+  results: T[]
+  success: boolean
   meta: {
-    duration: number;
-    rows_read: number;
-    rows_written: number;
-  };
+    duration: number
+    rows_read: number
+    rows_written: number
+  }
 }
 
 /**
@@ -181,7 +181,7 @@ export interface D1Result<T> {
  * Incoming request from Cloudflare Access for evaluation.
  */
 export interface ExternalEvaluationRequest {
-  token: string;
+  token: string
 }
 
 /**
@@ -190,9 +190,9 @@ export interface ExternalEvaluationRequest {
  * Signed JWT response returned to Cloudflare Access.
  */
 export interface ExternalEvaluationResponse {
-  success: boolean;
-  challenge?: string;
-  error?: string;
+  success: boolean
+  challenge?: string
+  error?: string
 }
 
 /**
@@ -202,30 +202,30 @@ export interface ExternalEvaluationResponse {
  * @see https://developer.okta.com/docs/reference/api/users/#user-object
  */
 export interface OktaUser {
-  id: string;
-  status: string;
-  created: string;
-  activated: string | null;
-  statusChanged: string | null;
-  lastLogin: string | null;
-  lastUpdated: string;
-  passwordChanged: string | null;
+  id: string
+  status: string
+  created: string
+  activated: string | null
+  statusChanged: string | null
+  lastLogin: string | null
+  lastUpdated: string
+  passwordChanged: string | null
   profile: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    login: string;
-    mobilePhone: string | null;
-  };
+    firstName: string
+    lastName: string
+    email: string
+    login: string
+    mobilePhone: string | null
+  }
   credentials?: {
     provider: {
-      type: string;
-      name: string;
-    };
-  };
+      type: string
+      name: string
+    }
+  }
   _links: {
-    self: { href: string };
-  };
+    self: { href: string }
+  }
 }
 
 /**
@@ -234,21 +234,21 @@ export interface OktaUser {
  * Group object returned from Okta API.
  */
 export interface OktaGroup {
-  id: string;
-  created: string;
-  lastUpdated: string;
-  lastMembershipUpdated: string;
-  objectClass: string[];
-  type: string;
+  id: string
+  created: string
+  lastUpdated: string
+  lastMembershipUpdated: string
+  objectClass: string[]
+  type: string
   profile: {
-    name: string;
-    description: string;
-  };
+    name: string
+    description: string
+  }
   _links: {
-    logo: Array<{ name: string; href: string; type: string }>;
-    users: { href: string };
-    apps: { href: string };
-  };
+    logo: Array<{ name: string; href: string; type: string }>
+    users: { href: string }
+    apps: { href: string }
+  }
 }
 
 /**
@@ -257,8 +257,8 @@ export interface OktaGroup {
  * Generic cached value with expiration.
  */
 export interface CacheEntry<T> {
-  value: T;
-  expiresAt: number;
+  value: T
+  expiresAt: number
 }
 
 /**
@@ -268,26 +268,26 @@ export interface CacheEntry<T> {
  */
 export interface Metrics {
   requests: {
-    total: number;
-    byEndpoint: Record<string, number>;
-  };
+    total: number
+    byEndpoint: Record<string, number>
+  }
   authentication: {
-    success: number;
-    failure: number;
-  };
+    success: number
+    failure: number
+  }
   database: {
-    queries: number;
-    errors: number;
-  };
+    queries: number
+    errors: number
+  }
   cache: {
-    hits: number;
-    misses: number;
-  };
+    hits: number
+    misses: number
+  }
   okta: {
-    userFetches: number;
-    groupFetches: number;
-    syncOperations: number;
-  };
+    userFetches: number
+    groupFetches: number
+    syncOperations: number
+  }
 }
 
 /**
@@ -296,12 +296,12 @@ export interface Metrics {
  * JSON log format for observability.
  */
 export interface LogEntry {
-  timestamp: string;
-  level: 'info' | 'warn' | 'error' | 'debug';
-  message: string;
-  context?: Record<string, unknown>;
-  requestId?: string;
-  duration?: number;
+  timestamp: string
+  level: 'info' | 'warn' | 'error' | 'debug'
+  message: string
+  context?: Record<string, unknown>
+  requestId?: string
+  duration?: number
 }
 
 /**
@@ -310,10 +310,10 @@ export interface LogEntry {
  * Standard response structure for admin API endpoints.
  */
 export interface ApiResponse<T = unknown> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  timestamp: string;
+  success: boolean
+  data?: T
+  error?: string
+  timestamp: string
 }
 
 /**
@@ -322,8 +322,8 @@ export interface ApiResponse<T = unknown> {
  * Results from Okta user synchronization.
  */
 export interface SyncStats {
-  usersAdded: number;
-  usersUpdated: number;
-  usersRemoved: number;
-  errors: string[];
+  usersAdded: number
+  usersUpdated: number
+  usersRemoved: number
+  errors: string[]
 }

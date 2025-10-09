@@ -4,26 +4,42 @@
  * Routes requests to appropriate handlers with authentication middleware.
  */
 
-import type { Env, AccessClaims } from './types/index.js';
+import type { Env, AccessClaims } from './types/index.js'
 import {
   handleKeysRequest,
   handleDatabaseInitRequest,
   handleExternalEvaluationRequest,
-} from './handlers/index.js';
-import { handleWebInterface, handleUpdateTraining, handleSystemOverview } from './handlers/web.js';
-import { handleOktaSync, handleOktaGroups, handleOktaUsers } from './handlers/sync.js';
-import { createUnauthorizedResponse, createUnauthorizedHtmlResponse } from './auth/admin.js';
-import { createCSPHeaders } from './security/csp.js';
-import { isAccessAuthenticated } from './auth/access.js';
-import { logRequest, logAuth, structuredLog, LOG_LEVELS } from './utils/logging.js';
+} from './handlers/index.js'
+import {
+  handleWebInterface,
+  handleUpdateTraining,
+  handleSystemOverview,
+} from './handlers/web.js'
+import {
+  handleOktaSync,
+  handleOktaGroups,
+  handleOktaUsers,
+} from './handlers/sync.js'
+import {
+  createUnauthorizedResponse,
+  createUnauthorizedHtmlResponse,
+} from './auth/admin.js'
+import { createCSPHeaders } from './security/csp.js'
+import { isAccessAuthenticated } from './auth/access.js'
+import {
+  logRequest,
+  logAuth,
+  structuredLog,
+  LOG_LEVELS,
+} from './utils/logging.js'
 
 /**
  * Error response structure
  */
 interface ErrorResponse {
-  success: boolean;
-  error: string;
-  timestamp: string;
+  success: boolean
+  error: string
+  timestamp: string
 }
 
 /**
@@ -39,21 +55,24 @@ async function handleAdminRequest(
   request: Request,
   env: Env,
   handler: () => Promise<Response>,
-  isWebInterface: boolean = false
+  isWebInterface: boolean = false,
 ): Promise<Response> {
   // Use Cloudflare Access authentication only
-  const accessClaims: AccessClaims | null = await isAccessAuthenticated(request, env);
+  const accessClaims: AccessClaims | null = await isAccessAuthenticated(
+    request,
+    env,
+  )
   if (!accessClaims) {
     // Not authenticated via Access
-    logAuth(false, 'Cloudflare Access authentication failed', env);
+    logAuth(false, 'Cloudflare Access authentication failed', env)
     if (isWebInterface) {
-      return createUnauthorizedHtmlResponse();
+      return createUnauthorizedHtmlResponse()
     } else {
-      return createUnauthorizedResponse();
+      return createUnauthorizedResponse()
     }
   }
 
-  logAuth(true, null, env);
+  logAuth(true, null, env)
   structuredLog(
     LOG_LEVELS.INFO,
     'Admin access granted',
@@ -61,11 +80,11 @@ async function handleAdminRequest(
       email: accessClaims.email,
       userAgent: request.headers.get('user-agent') || 'unknown',
     },
-    env
-  );
+    env,
+  )
 
   // Execute the handler
-  return handler();
+  return handler()
 }
 
 /**
@@ -73,22 +92,27 @@ async function handleAdminRequest(
  */
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const startTime = Date.now();
-    const url = new URL(request.url);
-    const endpoint = url.pathname;
-    const method = request.method;
+    const startTime = Date.now()
+    const url = new URL(request.url)
+    const endpoint = url.pathname
+    const method = request.method
 
     try {
-      let response: Response;
+      let response: Response
 
       if (url.pathname.endsWith('/keys')) {
-        response = await handleKeysRequest(env);
+        response = await handleKeysRequest(env)
       } else if (url.pathname.endsWith('/init-db')) {
         // Database initialization - requires Cloudflare Access authentication
-        response = await handleAdminRequest(request, env, () => handleDatabaseInitRequest(env), false);
+        response = await handleAdminRequest(
+          request,
+          env,
+          () => handleDatabaseInitRequest(env),
+          false,
+        )
       } else if (url.pathname === '/' && request.method === 'GET') {
         // Root path - System overview (no authentication required)
-        response = await handleSystemOverview(env);
+        response = await handleSystemOverview(env)
       } else if (
         url.pathname === '/admin' ||
         url.pathname === '/admin/' ||
@@ -96,41 +120,69 @@ export default {
         url.pathname === '/dashboard/'
       ) {
         // Admin web interface - Cloudflare Access authentication
-        response = await handleAdminRequest(request, env, () => handleWebInterface(env), true);
-      } else if (url.pathname === '/api/update-training' && request.method === 'POST') {
+        response = await handleAdminRequest(
+          request,
+          env,
+          () => handleWebInterface(env),
+          true,
+        )
+      } else if (
+        url.pathname === '/api/update-training' &&
+        request.method === 'POST'
+      ) {
         // Admin API - Cloudflare Access authentication
         response = await handleAdminRequest(
           request,
           env,
           () => handleUpdateTraining(env, request),
-          false
-        );
-      } else if (url.pathname === '/api/okta/sync' && request.method === 'POST') {
+          false,
+        )
+      } else if (
+        url.pathname === '/api/okta/sync' &&
+        request.method === 'POST'
+      ) {
         // Admin API - Cloudflare Access authentication
-        response = await handleAdminRequest(request, env, () => handleOktaSync(env, request), false);
-      } else if (url.pathname === '/api/okta/groups' && request.method === 'GET') {
+        response = await handleAdminRequest(
+          request,
+          env,
+          () => handleOktaSync(env, request),
+          false,
+        )
+      } else if (
+        url.pathname === '/api/okta/groups' &&
+        request.method === 'GET'
+      ) {
         // Admin API - Cloudflare Access authentication
-        response = await handleAdminRequest(request, env, () => handleOktaGroups(env), false);
-      } else if (url.pathname === '/api/okta/users' && request.method === 'GET') {
+        response = await handleAdminRequest(
+          request,
+          env,
+          () => handleOktaGroups(env),
+          false,
+        )
+      } else if (
+        url.pathname === '/api/okta/users' &&
+        request.method === 'GET'
+      ) {
         // Admin API - Cloudflare Access authentication
         response = await handleAdminRequest(
           request,
           env,
           () => handleOktaUsers(env, request),
-          false
-        );
+          false,
+        )
       } else {
-        response = await handleExternalEvaluationRequest(env, request);
+        response = await handleExternalEvaluationRequest(env, request)
       }
 
       // Log request metrics
-      const duration = Date.now() - startTime;
-      logRequest(endpoint, method, response.status, duration, env);
+      const duration = Date.now() - startTime
+      logRequest(endpoint, method, response.status, duration, env)
 
-      return response;
+      return response
     } catch (error) {
-      const duration = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const duration = Date.now() - startTime
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       structuredLog(
         LOG_LEVELS.ERROR,
         'Unhandled request error',
@@ -140,16 +192,16 @@ export default {
           error: errorMessage,
           duration,
         },
-        env
-      );
+        env,
+      )
 
-      logRequest(endpoint, method, 500, duration, env);
+      logRequest(endpoint, method, 500, duration, env)
 
       const errorResponse: ErrorResponse = {
         success: false,
         error: 'Internal server error',
         timestamp: new Date().toISOString(),
-      };
+      }
 
       return new Response(JSON.stringify(errorResponse), {
         status: 500,
@@ -157,7 +209,7 @@ export default {
           'content-type': 'application/json',
           ...createCSPHeaders(env),
         },
-      });
+      })
     }
   },
-};
+}

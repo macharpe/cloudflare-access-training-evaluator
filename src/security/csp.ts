@@ -4,28 +4,27 @@
  * Protects against XSS, injection attacks, and other security vulnerabilities.
  */
 
-import type { Env } from '../types';
-
+import type { Env } from '../types'
 
 /**
  * CSP configuration object
  */
 interface CSPConfiguration {
-  'default-src': string[];
-  'script-src': string[];
-  'style-src': string[];
-  'img-src': string[];
-  'font-src': string[];
-  'connect-src': string[];
-  'form-action': string[];
-  'frame-ancestors': string[];
-  'base-uri': string[];
-  'object-src': string[];
-  'media-src'?: string[];
-  'manifest-src'?: string[];
-  'worker-src'?: string[];
-  'upgrade-insecure-requests'?: boolean;
-  'block-all-mixed-content'?: boolean;
+  'default-src': string[]
+  'script-src': string[]
+  'style-src': string[]
+  'img-src': string[]
+  'font-src': string[]
+  'connect-src': string[]
+  'form-action': string[]
+  'frame-ancestors': string[]
+  'base-uri': string[]
+  'object-src': string[]
+  'media-src'?: string[]
+  'manifest-src'?: string[]
+  'worker-src'?: string[]
+  'upgrade-insecure-requests'?: boolean
+  'block-all-mixed-content'?: boolean
 }
 
 /**
@@ -34,9 +33,9 @@ interface CSPConfiguration {
  * @returns Base64-encoded nonce
  */
 export function generateNonce(): string {
-  const array = new Uint8Array(16);
-  crypto.getRandomValues(array);
-  return btoa(String.fromCharCode(...array));
+  const array = new Uint8Array(16)
+  crypto.getRandomValues(array)
+  return btoa(String.fromCharCode(...array))
 }
 
 /**
@@ -77,7 +76,7 @@ export const CSP_CONFIG = {
     'base-uri': ["'self'"],
     'object-src': ["'none'"],
   } as CSPConfiguration,
-} as const;
+} as const
 
 /**
  * Build CSP header value from configuration
@@ -90,36 +89,36 @@ export const CSP_CONFIG = {
 export function buildCSPHeader(
   config: CSPConfiguration,
   scriptNonce: string | null = null,
-  styleNonce: string | null = null
+  styleNonce: string | null = null,
 ): string {
-  const directives: string[] = [];
+  const directives: string[] = []
 
   for (const [directive, values] of Object.entries(config)) {
     if (typeof values === 'boolean') {
       if (values) {
-        directives.push(directive);
+        directives.push(directive)
       }
-      continue;
+      continue
     }
 
     if (!Array.isArray(values)) {
-      continue;
+      continue
     }
 
-    const directiveValues = [...values];
+    const directiveValues = [...values]
 
     // Add nonces for script and style sources
     if (directive === 'script-src' && scriptNonce) {
-      directiveValues.push(`'nonce-${scriptNonce}'`);
+      directiveValues.push(`'nonce-${scriptNonce}'`)
     }
     if (directive === 'style-src' && styleNonce) {
-      directiveValues.push(`'nonce-${styleNonce}'`);
+      directiveValues.push(`'nonce-${styleNonce}'`)
     }
 
-    directives.push(`${directive} ${directiveValues.join(' ')}`);
+    directives.push(`${directive} ${directiveValues.join(' ')}`)
   }
 
-  return directives.join('; ');
+  return directives.join('; ')
 }
 
 /**
@@ -130,8 +129,10 @@ export function buildCSPHeader(
  */
 export function getCSPConfig(env: Env): CSPConfiguration {
   // Use strict policy in production, development policy otherwise
-  const isDevelopment = env.DEBUG === true || (env as { ENVIRONMENT?: string }).ENVIRONMENT === 'development';
-  return isDevelopment ? CSP_CONFIG.development : CSP_CONFIG.strict;
+  const isDevelopment =
+    env.DEBUG === true ||
+    (env as { ENVIRONMENT?: string }).ENVIRONMENT === 'development'
+  return isDevelopment ? CSP_CONFIG.development : CSP_CONFIG.strict
 }
 
 /**
@@ -145,10 +146,10 @@ export function getCSPConfig(env: Env): CSPConfiguration {
 export function createCSPHeaders(
   env: Env,
   scriptNonce: string | null = null,
-  styleNonce: string | null = null
+  styleNonce: string | null = null,
 ): Record<string, string> {
-  const config = getCSPConfig(env);
-  const cspHeader = buildCSPHeader(config, scriptNonce, styleNonce);
+  const config = getCSPConfig(env)
+  const cspHeader = buildCSPHeader(config, scriptNonce, styleNonce)
 
   return {
     'Content-Security-Policy': cspHeader,
@@ -157,7 +158,7 @@ export function createCSPHeaders(
     'X-XSS-Protection': '1; mode=block',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
     'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
-  };
+  }
 }
 
 /**
@@ -173,31 +174,31 @@ export function addCSPHeaders(
   response: Response,
   env: Env,
   scriptNonce: string | null = null,
-  styleNonce: string | null = null
+  styleNonce: string | null = null,
 ): Response {
-  const headers = new Headers(response.headers);
-  const cspHeaders = createCSPHeaders(env, scriptNonce, styleNonce);
+  const headers = new Headers(response.headers)
+  const cspHeaders = createCSPHeaders(env, scriptNonce, styleNonce)
 
   // Add all security headers
   for (const [key, value] of Object.entries(cspHeaders)) {
-    headers.set(key, value);
+    headers.set(key, value)
   }
 
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
     headers,
-  });
+  })
 }
 
 /**
  * CSP Violation Report
  */
 interface CSPViolationReport {
-  'violated-directive': string;
-  'blocked-uri': string;
-  'source-file': string;
-  'line-number': number;
+  'violated-directive': string
+  'blocked-uri': string
+  'source-file': string
+  'line-number': number
 }
 
 /**
@@ -214,7 +215,7 @@ export function reportCSPViolation(violation: CSPViolationReport): void {
     sourceFile: violation['source-file'],
     lineNumber: violation['line-number'],
     timestamp: new Date().toISOString(),
-  });
+  })
 
   // In production, you might want to send this to a monitoring service
   // such as Cloudflare Analytics or another logging service
