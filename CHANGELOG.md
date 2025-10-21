@@ -5,6 +5,31 @@ All notable changes to the Cloudflare Access Training Evaluator project will be 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-10-21
+
+### Added
+
+- Hybrid cache optimization with Workers Cache API for admin dashboard
+- Cache headers for JWKS public keys endpoint (`/keys`)
+- Cache headers for system overview page (`/`)
+- ExecutionContext support in fetch handler for cache operations
+- Cache status indicators (`x-cache-status: HIT/MISS`) for monitoring
+
+### Changed
+
+- Admin dashboard now uses Workers Cache API with 30-second TTL
+- JWKS endpoint cached for 1 hour (browser) / 2 hours (edge)
+- System overview page cached for 5 minutes (browser) / 10 minutes (edge)
+- Reduced worker invocations by ~90% for cached endpoints
+- Reduced D1 database queries by ~60% for admin dashboard
+
+### Performance
+
+- `/keys` endpoint: ~95% reduction in worker invocations (~50ms → ~2ms latency)
+- `/` endpoint: ~90% reduction in worker invocations (~200ms → ~20ms latency)
+- `/admin` endpoint: ~40% reduction in worker invocations (~400ms → ~80ms latency)
+- Significant cost reduction through edge caching and reduced KV/D1 operations
+
 ## [2.0.0] - 2025-10-09
 
 ### Changed

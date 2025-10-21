@@ -91,7 +91,11 @@ async function handleAdminRequest(
  * Main Worker export
  */
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<Response> {
     const startTime = Date.now()
     const url = new URL(request.url)
     const endpoint = url.pathname
@@ -123,7 +127,7 @@ export default {
         response = await handleAdminRequest(
           request,
           env,
-          () => handleWebInterface(env),
+          () => handleWebInterface(env, ctx),
           true,
         )
       } else if (
