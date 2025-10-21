@@ -51,9 +51,32 @@ async function getAllUsers(env: Env): Promise<User[]> {
  * Handle GET request for the web interface
  *
  * @param env - Environment bindings
+ * @param ctx - Execution context for cache operations
  * @returns HTML response
  */
-export async function handleWebInterface(env: Env): Promise<Response> {
+export async function handleWebInterface(
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
+  // Use Workers Cache API for expensive D1 queries
+  const cache = caches.default
+  const cacheKey = new Request('https://cache.internal/admin-dashboard')
+
+  // Check cache first
+  let cachedResponse = await cache.match(cacheKey)
+
+  if (cachedResponse) {
+    // Return cached response with updated headers
+    return new Response(cachedResponse.body, {
+      status: cachedResponse.status,
+      headers: {
+        ...Object.fromEntries(cachedResponse.headers),
+        'x-cache-status': 'HIT',
+      },
+    })
+  }
+
+  // Cache miss - fetch from database
   const users = await getAllUsers(env)
 
   // Generate nonces for inline scripts and styles
@@ -1339,11 +1362,20 @@ export async function handleWebInterface(env: Env): Promise<Response> {
   `
 
   const response = new Response(html, {
-    headers: { 'content-type': 'text/html' },
+    headers: {
+      'content-type': 'text/html',
+      'cache-control': 'private, max-age=30',
+      'x-cache-status': 'MISS',
+    },
   })
 
   // Add CSP headers with nonces
-  return addCSPHeaders(response, env, scriptNonce, styleNonce)
+  const finalResponse = addCSPHeaders(response, env, scriptNonce, styleNonce)
+
+  // Store in Workers cache for 30 seconds (non-blocking)
+  ctx.waitUntil(cache.put(cacheKey, finalResponse.clone()))
+
+  return finalResponse
 }
 
 /**
@@ -1737,7 +1769,10 @@ export async function handleSystemOverview(env: Env): Promise<Response> {
   `
 
   const response = new Response(html, {
-    headers: { 'content-type': 'text/html' },
+    headers: {
+      'content-type': 'text/html',
+      'cache-control': 'public, max-age=300, s-maxage=600',
+    },
   })
 
   // Add CSP headers with nonces

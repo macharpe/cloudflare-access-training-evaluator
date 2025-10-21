@@ -81,6 +81,7 @@ export async function handleKeysRequest(env: Env): Promise<Response> {
     status: 200,
     headers: {
       'content-type': 'application/json',
+      'cache-control': 'public, max-age=3600, s-maxage=7200',
       ...createCSPHeaders(env),
     },
   })
