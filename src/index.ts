@@ -94,7 +94,7 @@ export default {
   async fetch(
     request: Request,
     env: Env,
-    ctx: ExecutionContext,
+    _ctx: ExecutionContext,
   ): Promise<Response> {
     const startTime = Date.now()
     const url = new URL(request.url)
@@ -127,7 +127,7 @@ export default {
         response = await handleAdminRequest(
           request,
           env,
-          () => handleWebInterface(env, ctx),
+          () => handleWebInterface(env),
           true,
         )
       } else if (
