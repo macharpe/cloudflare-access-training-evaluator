@@ -51,32 +51,10 @@ async function getAllUsers(env: Env): Promise<User[]> {
  * Handle GET request for the web interface
  *
  * @param env - Environment bindings
- * @param ctx - Execution context for cache operations
  * @returns HTML response
  */
-export async function handleWebInterface(
-  env: Env,
-  ctx: ExecutionContext,
-): Promise<Response> {
-  // Use Workers Cache API for expensive D1 queries
-  const cache = caches.default
-  const cacheKey = new Request('https://cache.internal/admin-dashboard')
-
-  // Check cache first
-  let cachedResponse = await cache.match(cacheKey)
-
-  if (cachedResponse) {
-    // Return cached response with updated headers
-    return new Response(cachedResponse.body, {
-      status: cachedResponse.status,
-      headers: {
-        ...Object.fromEntries(cachedResponse.headers),
-        'x-cache-status': 'HIT',
-      },
-    })
-  }
-
-  // Cache miss - fetch from database
+export async function handleWebInterface(env: Env): Promise<Response> {
+  // Fetch users from database (no caching - data changes frequently)
   const users = await getAllUsers(env)
 
   // Generate nonces for inline scripts and styles
@@ -767,7 +745,7 @@ export async function handleWebInterface(
                 <div class="sync-status">
                     <span id="syncStatus">Ready to sync users from Okta</span>
                 </div>
-                <button class="sync-button" id="syncButton" onclick="syncOktaUsers()">
+                <button class="sync-button" id="syncButton">
                     🔄 Sync Users from Okta
                 </button>
             </div>
@@ -807,7 +785,7 @@ export async function handleWebInterface(
                 </div>
                 <div class="filter-group">
                     <label class="filter-label" style="visibility: hidden;">Actions:</label>
-                    <button type="button" class="filter-clear" onclick="clearFilters()">Clear Filters</button>
+                    <button type="button" class="filter-clear" id="clearFiltersBtn">Clear Filters</button>
                 </div>
             </div>
 
@@ -822,8 +800,8 @@ export async function handleWebInterface(
                         <option value="started">Mark as In Progress</option>
                         <option value="not started">Mark as Not Started</option>
                     </select>
-                    <button type="button" class="bulk-action-btn" id="applyBulkAction" onclick="applyBulkStatusUpdate()">Apply</button>
-                    <button type="button" class="bulk-action-btn bulk-cancel" onclick="clearSelection()">Cancel</button>
+                    <button type="button" class="bulk-action-btn" id="applyBulkAction">Apply</button>
+                    <button type="button" class="bulk-action-btn bulk-cancel" id="cancelBulkAction">Cancel</button>
                 </div>
             </div>
 
@@ -832,7 +810,7 @@ export async function handleWebInterface(
                     <thead>
                         <tr>
                             <th class="checkbox-cell">
-                                <input type="checkbox" class="select-all-checkbox" id="selectAllCheckbox" onchange="toggleAllSelection(this)">
+                                <input type="checkbox" class="select-all-checkbox" id="selectAllCheckbox">
                             </th>
                             <th class="sortable" data-column="first_name">First Name</th>
                             <th class="sortable" data-column="primary_email">Primary Email</th>
@@ -847,13 +825,13 @@ export async function handleWebInterface(
                             (user) => `
                             <tr data-user-id="${user.id}" data-user-email="${user.primary_email}">
                                 <td class="checkbox-cell">
-                                    <input type="checkbox" class="user-checkbox" value="${user.primary_email}" onchange="updateSelection()">
+                                    <input type="checkbox" class="user-checkbox" value="${user.primary_email}">
                                 </td>
                                 <td class="username">${user.first_name || '-'}</td>
                                 <td class="email">${user.primary_email || '-'}</td>
                                 <td>
                                     <select class="status-select status-${user.training_status.replace(' ', '-')}"
-                                            onchange="updateTrainingStatus('${user.primary_email}', this.value, this)"
+                                            data-email="${user.primary_email}"
                                             data-original-value="${user.training_status}">
                                         <option value="not started" ${user.training_status === 'not started' ? 'selected' : ''}>Not Started</option>
                                         <option value="started" ${user.training_status === 'started' ? 'selected' : ''}>In Progress</option>
@@ -893,6 +871,7 @@ export async function handleWebInterface(
                     headers: {
                         'Content-Type': 'application/json',
                     },
+                    credentials: 'same-origin',
                     body: JSON.stringify({
                         email: email,
                         status: newStatus
@@ -969,7 +948,8 @@ export async function handleWebInterface(
 
             try {
                 const response = await fetch('/api/okta/sync', {
-                    method: 'POST'
+                    method: 'POST',
+                    credentials: 'same-origin'
                 });
 
                 const result = await response.json();
@@ -1278,6 +1258,7 @@ export async function handleWebInterface(
                         headers: {
                             'Content-Type': 'application/json',
                         },
+                        credentials: 'same-origin',
                         body: JSON.stringify({
                             email: email,
                             status: newStatus
@@ -1351,10 +1332,60 @@ export async function handleWebInterface(
             document.getElementById('notStartedCount').textContent = notStarted;
         }
 
+        // Initialize event listeners for elements
+        function initializeEventListeners() {
+            // Sync button
+            const syncButton = document.getElementById('syncButton');
+            if (syncButton) {
+                syncButton.addEventListener('click', syncOktaUsers);
+            }
+
+            // Clear filters button
+            const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+            if (clearFiltersBtn) {
+                clearFiltersBtn.addEventListener('click', clearFilters);
+            }
+
+            // Bulk action buttons
+            const applyBulkAction = document.getElementById('applyBulkAction');
+            if (applyBulkAction) {
+                applyBulkAction.addEventListener('click', applyBulkStatusUpdate);
+            }
+
+            const cancelBulkAction = document.getElementById('cancelBulkAction');
+            if (cancelBulkAction) {
+                cancelBulkAction.addEventListener('click', clearSelection);
+            }
+
+            // Select all checkbox
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.addEventListener('change', function() {
+                    toggleAllSelection(this);
+                });
+            }
+
+            // User checkboxes (using event delegation on table)
+            const usersTable = document.getElementById('usersTable');
+            if (usersTable) {
+                usersTable.addEventListener('change', function(e) {
+                    if (e.target.classList.contains('user-checkbox')) {
+                        updateSelection();
+                    }
+                    if (e.target.classList.contains('status-select')) {
+                        const email = e.target.getAttribute('data-email');
+                        const newStatus = e.target.value;
+                        updateTrainingStatus(email, newStatus, e.target);
+                    }
+                });
+            }
+        }
+
         // Initialize sorting and filtering when page loads
         document.addEventListener('DOMContentLoaded', () => {
             initializeSorting();
             initializeFiltering();
+            initializeEventListeners();
         });
     </script>
 </body>
@@ -1364,16 +1395,17 @@ export async function handleWebInterface(
   const response = new Response(html, {
     headers: {
       'content-type': 'text/html',
-      'cache-control': 'private, max-age=30',
-      'x-cache-status': 'MISS',
+      'cache-control': 'private, no-cache, no-store, must-revalidate',
+      pragma: 'no-cache',
+      expires: '0',
+      'x-content-version': `${Date.now()}-${scriptNonce.substring(0, 8)}`,
+      'x-script-nonce': scriptNonce,
+      'x-style-nonce': styleNonce,
     },
   })
 
   // Add CSP headers with nonces
   const finalResponse = addCSPHeaders(response, env, scriptNonce, styleNonce)
-
-  // Store in Workers cache for 30 seconds (non-blocking)
-  ctx.waitUntil(cache.put(cacheKey, finalResponse.clone()))
 
   return finalResponse
 }
