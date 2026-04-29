@@ -82,16 +82,23 @@ export const CSP_CONFIG = {
  * Build CSP header value from configuration
  *
  * @param config - CSP configuration object
- * @param scriptNonce - Nonce for inline scripts
+ * @param scriptNonces - One or more nonces for inline scripts
  * @param styleNonce - Nonce for inline styles
  * @returns CSP header value
  */
 export function buildCSPHeader(
   config: CSPConfiguration,
-  scriptNonce: string | null = null,
+  scriptNonces: string | string[] | null = null,
   styleNonce: string | null = null,
 ): string {
   const directives: string[] = []
+
+  // Normalise to array for uniform handling
+  const scriptNonceList: string[] = scriptNonces
+    ? Array.isArray(scriptNonces)
+      ? scriptNonces
+      : [scriptNonces]
+    : []
 
   for (const [directive, values] of Object.entries(config)) {
     if (typeof values === 'boolean') {
@@ -108,8 +115,8 @@ export function buildCSPHeader(
     const directiveValues = [...values]
 
     // Add nonces for script and style sources
-    if (directive === 'script-src' && scriptNonce) {
-      directiveValues.push(`'nonce-${scriptNonce}'`)
+    if (directive === 'script-src' && scriptNonceList.length > 0) {
+      scriptNonceList.forEach((n) => directiveValues.push(`'nonce-${n}'`))
     }
     if (directive === 'style-src' && styleNonce) {
       directiveValues.push(`'nonce-${styleNonce}'`)
@@ -139,17 +146,17 @@ export function getCSPConfig(env: Env): CSPConfiguration {
  * Create CSP headers for HTTP responses
  *
  * @param env - Environment bindings
- * @param scriptNonce - Nonce for inline scripts
+ * @param scriptNonces - One or more nonces for inline scripts
  * @param styleNonce - Nonce for inline styles
  * @returns Headers object with CSP
  */
 export function createCSPHeaders(
   env: Env,
-  scriptNonce: string | null = null,
+  scriptNonces: string | string[] | null = null,
   styleNonce: string | null = null,
 ): Record<string, string> {
   const config = getCSPConfig(env)
-  const cspHeader = buildCSPHeader(config, scriptNonce, styleNonce)
+  const cspHeader = buildCSPHeader(config, scriptNonces, styleNonce)
 
   return {
     'Content-Security-Policy': cspHeader,
@@ -166,18 +173,18 @@ export function createCSPHeaders(
  *
  * @param response - Original response
  * @param env - Environment bindings
- * @param scriptNonce - Nonce for inline scripts
+ * @param scriptNonces - One or more nonces for inline scripts
  * @param styleNonce - Nonce for inline styles
  * @returns Response with CSP headers
  */
 export function addCSPHeaders(
   response: Response,
   env: Env,
-  scriptNonce: string | null = null,
+  scriptNonces: string | string[] | null = null,
   styleNonce: string | null = null,
 ): Response {
   const headers = new Headers(response.headers)
-  const cspHeaders = createCSPHeaders(env, scriptNonce, styleNonce)
+  const cspHeaders = createCSPHeaders(env, scriptNonces, styleNonce)
 
   // Add all security headers
   for (const [key, value] of Object.entries(cspHeaders)) {

@@ -5,6 +5,39 @@ All notable changes to the Cloudflare Access Training Evaluator project will be 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-04-29
+
+### Added
+
+- **Dark / Light mode** across all four UI pages (Admin Dashboard, System Overview, External Eval fallback, Access Denied)
+  - Theme toggle button (moon/sun SVG) on every page
+  - Flash-prevention inline script sets `data-mode` on `<html>` before first paint
+  - Preference persisted to `localStorage`; respects `prefers-color-scheme` as default
+- **Kumo design system** — full UI rebuild using Cloudflare's Kumo semantic token system
+  - CSS custom property token set: surfaces (`canvas → base → tint`), text hierarchy, status colours, borders, shadows, radius scale
+  - `[data-mode="dark"]` overrides redefine all tokens for dark mode with no additional class logic
+  - Admin Dashboard: sticky page header with CF logo dot, stat cards, pill-style status selects, clean table with uppercase column headers, bulk-actions dark bar
+  - Card pages (System Overview, Access Denied, External Eval): centred card layout with orange/red header bar, endpoint method badges, status banners, notice boxes
+
+### Changed
+
+- Replaced all bespoke CSS with Kumo-compatible token-driven styles across `src/handlers/web.ts`, `src/handlers/index.ts`, and `src/auth/admin.ts`
+- Removed dark gradient background; replaced with neutral `--kumo-canvas` surface
+- Status badges replaced with `badge-success` / `badge-danger` pill components with animated dot
+- Bulk-actions bar now uses semi-transparent rgba tokens so it renders correctly in both modes
+- Warning notice text now uses `var(--kumo-warning)` token instead of hard-coded amber hex
+- Wrangler updated from `4.28.0` → `4.86.0`
+- Worker route `training-status.macharpe.com/*` added to `wrangler.jsonc`
+
+### Fixed
+
+- CSP `buildCSPHeader` / `createCSPHeaders` / `addCSPHeaders` updated to accept `string | string[] | null` for `scriptNonces`, enabling multiple inline script nonces per response without generating invalid CSP directives
+- Dark mode flash-prevention script now correctly allowlisted via its own nonce in the CSP `script-src` directive
+
+### Security
+
+- Flash-prevention init script uses a dedicated nonce, correctly included in the CSP `script-src` alongside the main script nonce — no `unsafe-inline` required
+
 ## [2.1.0] - 2025-10-21
 
 ### Added
