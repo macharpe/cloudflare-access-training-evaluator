@@ -9,6 +9,7 @@ A **production-ready Cloudflare Worker** that implements an **External Evaluatio
 ![D1 Database](https://img.shields.io/badge/Cloudflare-D1%20Database-green?logo=cloudflare)
 ![Access Integration](https://img.shields.io/badge/Cloudflare-Access%20Protected-blue?logo=cloudflare)
 ![Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
+![Version](https://img.shields.io/badge/Version-3.0.0-blue)
 
 ![Training Completion Dashboard Screenshot](images/dashboard-screenshot.png)
 
@@ -150,6 +151,8 @@ sequenceDiagram
 - **Real-time User Overview**: View all users with training status and access permissions
 - **One-Click Operations**: Sync users from Okta, update training status
 - **Responsive Design**: Works on desktop and mobile devices
+- **Dark / Light Mode**: Per-user theme toggle with `localStorage` persistence and `prefers-color-scheme` default across all pages
+- **Kumo Design System**: UI rebuilt on Cloudflare's Kumo semantic token system — consistent surfaces, status colours, and typography matching the Cloudflare Workers design language
 
 ### **🔄 Enterprise Identity Integration**
 
