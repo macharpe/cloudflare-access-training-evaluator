@@ -5,6 +5,16 @@ All notable changes to the Cloudflare Access Training Evaluator project will be 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Okta sync no longer deletes users beyond the first page.** `fetchOktaUsers` read a single page (`limit=200`) and ignored Okta's `Link: rel="next"` header, while `syncUsersToDatabase` deletes every database user missing from the list it receives. On tenants with more than 200 users, everyone past the first page was treated as removed from Okta and deleted on the next sync.
+  - New `fetchOktaPages` helper follows `rel="next"` links for both the all-users and the group-users fetches
+  - The full combined list is cached (same 10-minute TTL), so a cache hit never returns a partial list
+  - Any failed page, unexpected payload, or non-`OKTA_DOMAIN` / non-HTTPS pagination link throws, so a partial list never reaches the delete step and the API token is never sent to another host
+  - Hard cap of 50 pages (10,000 users at 200 per page); exceeding it throws instead of truncating
+
 ## [3.0.0] - 2026-04-29
 
 ### Added
