@@ -12,8 +12,95 @@ import {
   extractUsername,
   sanitizeForLogging,
 } from '../utils/validation.js'
-import { cachedFetch, CACHE_CONFIG } from '../utils/cache.js'
-import { logOkta, logPerformance } from '../utils/logging.js'
+import {
+  cachedFetch,
+  getCached,
+  setCache,
+  CACHE_CONFIG,
+} from '../utils/cache.js'
+import { logCache, logOkta, logPerformance } from '../utils/logging.js'
+
+/**
+ * Safety cap on Okta pages followed in one call.
+ *
+ * With 200 users per page this covers 10,000 users. If the cap is reached the
+ * call throws rather than returning a truncated list, because the sync deletes
+ * every database user that is missing from the list it receives.
+ */
+const OKTA_MAX_PAGES = 50
+
+/**
+ * Extract the `rel="next"` URL from an Okta `Link` response header
+ *
+ * @param linkHeader - Raw Link header value (may hold several links)
+ * @returns Next page URL, or null when this is the last page
+ */
+export function parseNextLink(linkHeader: string | null): string | null {
+  if (!linkHeader) {
+    return null
+  }
+  const match = /<([^>]+)>\s*;\s*rel="next"/i.exec(linkHeader)
+  return match?.[1] ?? null
+}
+
+/**
+ * Fetch every page of an Okta list endpoint
+ *
+ * Follows `Link: rel="next"` headers. Any failed page, unexpected payload,
+ * foreign host or page-cap overrun throws, so callers never act on a
+ * partial list. The API token is only ever sent to `OKTA_DOMAIN`.
+ *
+ * @param env - Environment bindings
+ * @param firstUrl - URL of the first page
+ * @returns All items across all pages
+ */
+export async function fetchOktaPages<T>(
+  env: Env,
+  firstUrl: string,
+): Promise<T[]> {
+  const options: RequestInit = {
+    headers: {
+      Authorization: `SSWS ${env.OKTA_API_TOKEN}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+  }
+  const expectedHost = env.OKTA_DOMAIN.toLowerCase()
+  const items: T[] = []
+  let url: string | null = firstUrl
+  let pages = 0
+
+  while (url) {
+    if (pages >= OKTA_MAX_PAGES) {
+      throw new Error(
+        `Okta pagination exceeded ${OKTA_MAX_PAGES} pages; refusing to return a partial list`,
+      )
+    }
+
+    const parsed: URL = new URL(url)
+    if (parsed.protocol !== 'https:' || parsed.hostname !== expectedHost) {
+      throw new Error('Okta pagination link points to an unexpected host')
+    }
+
+    const response: Response = await fetch(url, options)
+    if (!response.ok) {
+      throw new Error(
+        `Okta API error: ${response.status} ${response.statusText}`,
+      )
+    }
+
+    const page: unknown = await response.json()
+    if (!Array.isArray(page)) {
+      throw new Error('Okta API returned an unexpected response shape')
+    }
+
+    items.push(...(page as T[]))
+    pages++
+    url = parseNextLink(response.headers.get('link'))
+  }
+
+  return items
+}
 
 /**
  * Processed user data structure
@@ -86,29 +173,19 @@ export async function fetchOktaUsers(env: Env): Promise<ProcessedUser[]> {
     const cacheKey = `${CACHE_CONFIG.OKTA_USERS.key}_${env.OKTA_DOMAIN}`
     const limit = (env as { OKTA_FETCH_LIMIT?: number }).OKTA_FETCH_LIMIT || 200
     const url = `https://${env.OKTA_DOMAIN}/api/v1/users?limit=${limit}`
-    const options: RequestInit = {
-      headers: {
-        Authorization: `SSWS ${env.OKTA_API_TOKEN}`,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
+
+    // The full list (all pages) is cached, so a hit never returns a partial list
+    const cachedUsers = getCached<OktaUser[]>(cacheKey)
+    const cacheHit = cachedUsers !== null
+    logCache(cacheHit, cacheKey, env)
+
+    let users: OktaUser[]
+    if (cachedUsers) {
+      users = cachedUsers
+    } else {
+      users = await fetchOktaPages<OktaUser>(env, url)
+      setCache(cacheKey, users, CACHE_CONFIG.OKTA_USERS.ttl)
     }
-
-    const response = await cachedFetch<OktaUser[]>(
-      url,
-      options,
-      cacheKey,
-      CACHE_CONFIG.OKTA_USERS.ttl,
-      env,
-    )
-
-    if (!response.ok) {
-      throw new Error(
-        `Okta API error: ${response.status} ${response.statusText}`,
-      )
-    }
-
-    const users = (await response.json()) as OktaUser[]
 
     const processedUsers = users
       .map((user: OktaUser): ProcessedUser | null => {
@@ -142,7 +219,7 @@ export async function fetchOktaUsers(env: Env): Promise<ProcessedUser[]> {
       {
         usersCount: processedUsers.length,
         rawUsersCount: users.length,
-        cacheUsed: response.headers.get('x-cache') === 'HIT',
+        cacheUsed: cacheHit,
       },
       env,
     )
@@ -186,24 +263,10 @@ export async function fetchOktaGroupUsers(
       throw new Error('Invalid group ID format')
     }
 
-    const response = await fetch(
-      `https://${env.OKTA_DOMAIN}/api/v1/groups/${groupId}/users`,
-      {
-        headers: {
-          Authorization: `SSWS ${env.OKTA_API_TOKEN}`,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-        },
-      },
+    const users = await fetchOktaPages<OktaUser>(
+      env,
+      `https://${env.OKTA_DOMAIN}/api/v1/groups/${groupId}/users?limit=200`,
     )
-
-    if (!response.ok) {
-      throw new Error(
-        `Okta Groups API error: ${response.status} ${response.statusText}`,
-      )
-    }
-
-    const users = (await response.json()) as OktaUser[]
     console.log('Fetched', users.length, 'users from Okta group:', groupId)
 
     return users
