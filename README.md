@@ -9,7 +9,7 @@ A **production-ready Cloudflare Worker** that implements an **External Evaluatio
 ![D1 Database](https://img.shields.io/badge/Cloudflare-D1%20Database-green?logo=cloudflare)
 ![Access Integration](https://img.shields.io/badge/Cloudflare-Access%20Protected-blue?logo=cloudflare)
 ![Production Ready](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
-![Version](https://img.shields.io/badge/Version-3.0.0-blue)
+![Version](https://img.shields.io/badge/Version-4.0.0-blue)
 
 ![Training Completion Dashboard Screenshot](images/dashboard-screenshot.png)
 
@@ -172,7 +172,7 @@ The worker implements a comprehensive Content Security Policy to protect against
 
 - **Nonce-Based Protection**: Each request generates unique cryptographic nonces for inline scripts and styles
 - **Strict Directives**: Production policy blocks all unauthorized content sources
-- **Development Mode**: More permissive policy when `DEBUG=true` for easier development
+- **Same Policy Everywhere**: `DEBUG` never relaxes the policy; only `ENVIRONMENT=development` drops the HTTPS-only directives for plain-http local development
 - **Security Headers**: All responses include comprehensive security headers
 
 ### **Security Headers Included**

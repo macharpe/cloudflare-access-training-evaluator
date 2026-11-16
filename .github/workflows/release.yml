@@ -48,6 +48,9 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
 
+          # Previous release tag (works for any version bump, e.g. 3.0.0 -> 4.0.0)
+          PREVIOUS_TAG=$(git tag --sort=-v:refname | grep -v "^v${VERSION}$" | head -n 1 || true)
+
           # Extract release notes between version headers
           awk "/^## \[$VERSION\]/{flag=1;next}/^## \[/{flag=0}flag" CHANGELOG.md > release_notes.tmp
 
@@ -59,7 +62,9 @@ jobs:
           {
             cat release_notes.tmp
             echo ""
-            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/v$(echo "$VERSION" | awk -F. '{printf "%d.%d.%d", $1, $2, $3-1}')...v$VERSION"
+            if [ -n "$PREVIOUS_TAG" ]; then
+              echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...v$VERSION"
+            fi
           } > final_release_notes.md
 
           # Debug output
