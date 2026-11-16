@@ -7,35 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-11-16
+
+A security and reliability release: the admin gate now verifies the Access token, the Okta sync can no longer silently lose or merge identities, and the admin dashboard is rebuilt with real Kumo components. **Read the upgrade notes first.**
+
+### Upgrade notes (breaking)
+
+- **Evaluation now matches on the full email.** The email in the Access identity must equal the stored Okta login (`primary_email`), case-insensitive. Before, only the part before the `@` was compared, so `alice@a.com` and `alice@b.com` shared one status. A user whose stored email is missing or different is now denied, and an email that matches several rows is denied. Check with: `SELECT username, primary_email FROM users WHERE primary_email IS NULL OR lower(primary_email) NOT LIKE username || '@%'`.
+- **Service tokens cannot open the admin UI.** The admin gate needs a verified Access JWT with an `email` claim, and service-token JWTs carry none.
+- **Rotate the RSA signing key.** A version before this one wrote the private key to the Worker logs. Removing the log line does not remove old log records. See the README, Step 6.
+- **API response changes:** `GET /api/okta/groups` returns `{id, name, description, type, created}` per group instead of the nested `profile` object (and no longer invents `lastUpdated` or `_links`); `POST /api/okta/sync` returns HTTP 207 with `success: false` when the results contain errors; `POST /api/update-training` returns 400 for malformed input and 413 for bodies over 10 KB (was 500).
+- **Routing is exact-match.** Unknown paths return 404 and a wrong method returns 405 with `Allow`. Before, any path ending in `/keys` or `/init-db` matched, and every other request fell through to the evaluation handler. `GET /keys` and `POST /` (used by the Access external-evaluation rule) are unchanged.
+- **Cloudflare Access application:** it must cover `/admin*`, `/api/*` and `/init-db`. `/dashboard`, `/dashboard/` and `/init-db/` are aliases and need not be covered.
+
 ### Added
 
-- **Admin dashboard rebuilt with real `@cloudflare/kumo` components** (React, bundled with Vite and embedded in the Worker): stat cards with a completion meter, status tabs, search, sortable table, pagination, row selection, and a confirmation dialog before any grant or revoke. Light and dark themes. Only server-confirmed changes are shown; a failed edit reverts, and a partly failed bulk update keeps the failed rows selected. A sync that finishes with errors is shown as a partial failure and the data is reloaded.
-- **Server-side origin (CSRF) check** (`src/auth/origin.ts`) on every state-changing admin request.
-- **Test suite** (Vitest, 500+ tests) covering the access rule, JWT verification, CSP, routing, the origin check, Okta pagination and sync, and the dashboard's API client. Includes a local-only signing-key generator (`scripts/generate-signing-keys.mjs`).
-- **Tooling:** ESLint 10 flat config (type-aware, covers `src/`, `ui/` and `tests/`), type-checking of the tests, a generated `Env` type (`npm run types`), and `AGENTS.md`.
-- **CI:** a monthly keepalive workflow so GitHub does not disable the required Semgrep check after 60 days of inactivity.
+- **Admin dashboard rebuilt with real `@cloudflare/kumo` components** (React, bundled with Vite and embedded in the Worker, 605 KiB JS and 102 KiB CSS): stat cards with a completion meter, status tabs with counts, search, a sortable table, pagination, row selection, and a confirmation dialog before any grant or revoke. Light and dark themes. Only server-confirmed changes are shown; a failed edit reverts, a partly failed bulk update keeps the failed rows selected, and a sync that finishes with errors is shown as a partial failure and the data is reloaded.
+- **Server-side origin (CSRF) check** (`src/auth/origin.ts`) on every state-changing admin request, after authentication.
+- **Test suite:** Vitest with 514 tests and a D1 fake that runs the real SQL through `node:sqlite`. Covers the access rule, JWT verification, CSP, routing, the origin check, Okta pagination and transactional sync, update validation, and the dashboard's API client.
+- **Tooling:** type-aware ESLint 10 flat config (`src/`, `ui/`, `tests/`), type-checking of the tests, a generated `Env` type (`npm run types`), and `AGENTS.md`.
+- **Key provisioning:** `scripts/generate-signing-keys.mjs` creates a key pair locally with owner-only permissions, no network calls and no secrets on stdout.
+- **CI:** a monthly keepalive workflow so GitHub does not disable the required Semgrep check after 60 days of inactivity, and Dependabot for GitHub Actions (grouped, monthly, 7-day cooldown).
 
 ### Changed
 
-- **Admin authentication now verifies the Access JWT.** The RS256 signature is checked against the team keys, `exp` is required, `iss` is pinned to `https://TEAM_DOMAIN`, and `aud` must match `ACCESS_APP_AUD`. The unsigned `CF-Access-Jwt-Payload` header is no longer trusted. Service-token JWTs carry no `email` claim and are therefore not accepted by the admin gate.
-- **Evaluation matches on the full email, not the local part.** `alice@a.com` and `alice@b.com` no longer share a status. The Access identity email must equal the stored Okta login (case-insensitive); an email that matches several rows is denied.
-- **Okta sync reconciles by identity.** A username that exists with a different email is reported as an identity conflict and is never updated, inherited or deleted. Writes run in transactional batches of at most 100; deletion runs only for a full-directory sync that finished with no errors, never for an empty directory, and never for users whose Okta login could not be parsed. Group syncs add and update only. Syncs read fresh data instead of the 10-minute cache.
-- **Sync responses:** errors in the results return HTTP 207 with `success: false`; failures return a generic message and the details only in the Worker logs. `fetchOktaGroups` is paginated and returns only fields Okta provides.
-- **Routing is exact-match.** Unknown paths return 404 and wrong methods return 405 with `Allow`; nothing falls through to the evaluation handler except `POST /`. `GET /keys` and `POST /` are unchanged.
-- **The CSP is always strict** (no `unsafe-inline`), `DEBUG` never changes it, and `DEBUG` is parsed strictly (the string `"false"` is not debug). Security headers, with nonces where needed, are now on every response including the 401, 403, 404 and 405 pages.
-- `POST /api/update-training` returns 400 for malformed input and 413 for bodies over 10 KB instead of 500.
-- Okta requests use `redirect: 'manual'` and reject any redirect, so the API token is never re-sent to another URL.
-- Tooling and config: `compatibility_date` moved to 2026-11-01, observability sampling and source maps enabled, Semgrep now scans TypeScript, and dependencies updated (`npm audit`: 0 vulnerabilities).
+- **Admin authentication verifies the Access JWT.** The RS256 signature is checked against the team keys, `exp` is required, `iss` is pinned to `https://TEAM_DOMAIN`, and `aud` must match `ACCESS_APP_AUD`. The unsigned `CF-Access-Jwt-Payload` header is no longer trusted, and base64url tokens containing `-` or `_` now work.
+- **Evaluation token:** only RS256 is accepted, and `exp` is required. A token whose `iss` differs from `https://TEAM_DOMAIN` is logged as a warning but still accepted, because its signature was already verified against your team's keys.
+- **Okta sync reconciles by identity.** A username that exists with a different email is reported as an identity conflict and is never updated, inherited or deleted. Two directory users that share a username are both skipped. A sync updates only `first_name` (never `primary_email` or `training_status`) and never inserts a user whose email already belongs to another row.
+- **Sync safety:** writes run in transactional batches of at most 100, and a failed batch stops the later phases. Deletion runs only for a full-directory sync that finished with no errors, never for an empty directory, and never for users whose Okta login could not be parsed. Group syncs add and update only. Syncs read fresh data instead of the 10-minute cache.
+- **Okta requests** use `redirect: 'manual'` and reject any redirect, so the API token is never re-sent to another URL. Pagination links must match the Okta origin including the port, with no embedded credentials. `groupId` is validated before any Okta call.
+- **Sync responses** return a generic message on failure, with details only in the Worker logs. `fetchOktaGroups` is paginated.
+- **The CSP is always strict** (no `unsafe-inline`). `DEBUG` never changes it and is parsed strictly (the string `"false"` is not debug). Security headers, with nonces where needed, are now on every response, including the 401, 403, 404 and 405 pages.
+- **Config:** `compatibility_date` is 2026-11-01 (smoke-tested on the local runtime), observability sampling and source maps are enabled, and dependencies are updated, including Wrangler 4.163 and the Workers types 5 (`npm audit`: 0 vulnerabilities).
+- **CI:** Semgrep now scans TypeScript and flags only unguarded `JSON.parse`, every GitHub Action is pinned to a full commit SHA, and `upload-sarif` is v4.
+- The release workflow builds its "Full Changelog" compare link from the previous tag instead of subtracting 1 from the patch number, which produced `v4.0.-1` for a `.0` release.
 
 ### Security
 
-- The RSA signing private key is no longer written to the logs. **A version before this one logged it, so treat that key as exposed and rotate it** (see the README, Step 6).
-- Removed the response headers that exposed the page nonces.
-- Okta pagination now compares the full origin, including the port.
+- The RSA signing private key is no longer written to the logs (see the upgrade notes).
+- The `x-script-nonce`, `x-style-nonce` and `x-content-version` response headers that exposed page nonces are removed.
+- Okta pagination compares the full origin, not just the hostname.
 
 ### Removed
 
-- Unused code: the API-key auth stub, unused database and type-guard helpers, `reportCSPViolation`, unused metrics and type definitions, and the duplicate friendly page in the evaluation handler.
+- Unused code: the API-key auth stub (`shouldUseApiKeyAuth`), unused database and type-guard helpers, `reportCSPViolation`, the unused metrics and type definitions (`src/types/handlers.ts` and others), and the duplicate friendly page in the evaluation handler.
 
 ### Fixed
 
@@ -44,6 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The full combined list is cached (same 10-minute TTL), so a cache hit never returns a partial list
   - Any failed page, unexpected payload, or non-`OKTA_DOMAIN` / non-HTTPS pagination link throws, so a partial list never reaches the delete step and the API token is never sent to another host
   - Hard cap of 50 pages (10,000 users at 200 per page); exceeding it throws instead of truncating
+- A group-scoped sync no longer deletes every user outside the group.
+- Okta sync errors, and `POST /api/update-training` with malformed input, no longer return 500 or `success: true`.
 
 ## [3.0.0] - 2026-04-29
 
