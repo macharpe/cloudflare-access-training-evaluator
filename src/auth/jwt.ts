@@ -8,6 +8,8 @@
 import type { Env, DecodedJWT, AccessClaims, JWKS } from '../types'
 import { base64url, asciiToUint8Array } from '../utils/encoding.js'
 import { cachedFetch, CACHE_CONFIG } from '../utils/cache.js'
+import { structuredLog, LOG_LEVELS } from '../utils/logging.js'
+import { sanitizeForLogging } from '../utils/validation.js'
 
 /**
  * Parse a JWT into its respective pieces
@@ -25,12 +27,16 @@ export function parseJWT(token: string): DecodedJWT {
   }
 
   const enc = new TextDecoder('utf-8')
-  const header = JSON.parse(enc.decode(base64url.parse(tokenParts[0]!)))
-  const payload = JSON.parse(enc.decode(base64url.parse(tokenParts[1]!)))
+  const header = JSON.parse(
+    enc.decode(base64url.parse(tokenParts[0]!)),
+  ) as DecodedJWT['header']
+  const payload = JSON.parse(
+    enc.decode(base64url.parse(tokenParts[1]!)),
+  ) as AccessClaims
 
   return {
     header,
-    payload: payload as AccessClaims,
+    payload,
     signature: tokenParts[2]!,
     raw: {
       header: tokenParts[0]!,
@@ -50,12 +56,16 @@ export function parseJWT(token: string): DecodedJWT {
 export async function verifyToken(
   env: Env,
   token: string,
+  options: VerifyTokenOptions = {},
 ): Promise<AccessClaims> {
-  if (env.DEBUG) {
-    console.log('incoming JWT', token)
+  // Never log the token here: this also validates admin session tokens.
+  const jwt = parseJWT(token)
+
+  // Only RS256 is ever issued by Access; never let the token pick the algorithm.
+  if (jwt.header.alg !== 'RS256') {
+    throw new Error('unsupported token algorithm')
   }
 
-  const jwt = parseJWT(token)
   const key = await fetchAccessPublicKey(env, jwt.header.kid)
 
   const toBeValidated = `${jwt.raw.header}.${jwt.raw.payload}`
@@ -74,12 +84,57 @@ export async function verifyToken(
   const claims = jwt.payload
   const now = Math.floor(Date.now() / 1000)
 
-  // Validate expiration
-  if (claims.exp < now) {
+  // Validate expiration. A token without a numeric exp never expires, so reject it.
+  if (typeof claims.exp !== 'number' || claims.exp < now) {
     throw new Error('expired token')
   }
 
+  // The issuer is deliberately not enforced here: the signature was verified
+  // against OUR team's keys, so the token can only come from our Access team,
+  // and the exact `iss` format of External Evaluation tokens is not pinned
+  // down - enforcing a wrong guess would deny every user. The admin gate
+  // (auth/access.ts) strictly pins `iss` for admin sessions.
+  if (options.warnOnIssuerMismatch) {
+    warnOnUnexpectedIssuer(env, claims)
+  }
   return claims
+}
+
+/**
+ * Options for {@link verifyToken}
+ */
+export interface VerifyTokenOptions {
+  /**
+   * Emit one structured warning (never enforce) when a present `iss` claim
+   * differs from `https://TEAM_DOMAIN`. Used for External Evaluation tokens.
+   */
+  warnOnIssuerMismatch?: boolean
+}
+
+/**
+ * Log a single structured warning when the token issuer is present and differs
+ * from our team domain. Observability only: never rejects, never logs the token.
+ *
+ * @param env - Environment bindings
+ * @param claims - Verified token claims
+ */
+export function warnOnUnexpectedIssuer(env: Env, claims: AccessClaims): void {
+  const expected = `https://${env.TEAM_DOMAIN}`
+  const issuer = (claims as { iss?: unknown }).iss
+  if (issuer === undefined || issuer === null || issuer === expected) {
+    return
+  }
+  structuredLog(
+    LOG_LEVELS.WARN,
+    'Evaluation token issuer differs from TEAM_DOMAIN',
+    {
+      issuer: sanitizeForLogging(
+        typeof issuer === 'string' ? issuer : JSON.stringify(issuer),
+      ),
+      expected,
+    },
+    env,
+  )
 }
 
 /**
@@ -150,7 +205,7 @@ async function fetchAccessPublicKey(env: Env, kid: string): Promise<CryptoKey> {
     )
   }
 
-  const keys = (await resp.json()) as JWKS
+  const keys: JWKS = await resp.json()
 
   // Optimized: Use find() instead of filter()[0] for early termination
   const jwk = keys.keys.find((key: { kid: string }) => key.kid === kid)
@@ -161,7 +216,7 @@ async function fetchAccessPublicKey(env: Env, kid: string): Promise<CryptoKey> {
 
   const key = await crypto.subtle.importKey(
     'jwk',
-    jwk as JsonWebKey,
+    jwk,
     {
       name: 'RSASSA-PKCS1-v1_5',
       hash: 'SHA-256',
@@ -225,7 +280,12 @@ async function loadSigningKey(
 
     return { kid: publicKeyset.kid, privateKey: signingKey }
   } catch (e) {
-    console.log('Failed to parse or import private key from secret:', e)
-    throw new Error('invalid RSA_PRIVATE_KEY secret format')
+    // The cause is attached for debugging; it never contains key material because
+    // import errors describe the format problem, not the secret's value.
+    console.log(
+      'Failed to parse or import private key from secret:',
+      e instanceof Error ? e.message : String(e),
+    )
+    throw new Error('invalid RSA_PRIVATE_KEY secret format', { cause: e })
   }
 }

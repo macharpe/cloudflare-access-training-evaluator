@@ -22,7 +22,6 @@ interface StoredKey {
  * Key generation result
  */
 interface KeyGenerationResult {
-  keypair: CryptoKeyPair
   publicKey: JsonWebKey
   privateKey: JsonWebKey
   kid: string
@@ -80,16 +79,18 @@ export async function generateKeys(env: Env): Promise<KeyGenerationResult> {
       JSON.stringify({ public: publicKey, kid: kid }),
     )
 
+    // Never log private key material, even during initial setup or in DEBUG.
     console.log(
-      'SECURITY WARNING: Private key generated but not stored. You must manually set RSA_PRIVATE_KEY secret.',
+      'Signing key pair generated. Provision the private key securely; see scripts/generate-signing-keys.mjs.',
     )
-    console.log('Run: wrangler secret put RSA_PRIVATE_KEY')
-    console.log('Private key JWK:', JSON.stringify(privateKey))
 
-    return { keypair, publicKey, privateKey, kid }
+    return { publicKey, privateKey, kid }
   } catch (e) {
-    console.log('failed to generate keyset', e)
-    throw new Error('failed to generate keyset')
+    console.log(
+      'failed to generate keyset',
+      e instanceof Error ? e.message : String(e),
+    )
+    throw new Error('failed to generate keyset', { cause: e })
   }
 }
 

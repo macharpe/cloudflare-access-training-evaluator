@@ -63,11 +63,15 @@ export const CSP_CONFIG = {
     'block-all-mixed-content': true,
   } as CSPConfiguration,
 
-  // Development policy - more permissive for easier development
+  // Local development policy (plain-http `wrangler dev`). Identical to the
+  // strict policy - never 'unsafe-inline' / 'unsafe-eval' - except that it
+  // omits upgrade-insecure-requests and block-all-mixed-content, which would
+  // otherwise break http://localhost. Selected ONLY by ENVIRONMENT=development,
+  // never by DEBUG.
   development: {
     'default-src': ["'self'"],
-    'script-src': ["'self'", "'unsafe-inline'"],
-    'style-src': ["'self'", "'unsafe-inline'"],
+    'script-src': ["'self'"],
+    'style-src': ["'self'"],
     'img-src': ["'self'", 'data:', 'https:'],
     'font-src': ["'self'", 'https:', 'data:'],
     'connect-src': ["'self'"],
@@ -75,8 +79,19 @@ export const CSP_CONFIG = {
     'frame-ancestors': ["'none'"],
     'base-uri': ["'self'"],
     'object-src': ["'none'"],
+    'media-src': ["'self'"],
+    'manifest-src': ["'self'"],
+    'worker-src': ["'self'"],
   } as CSPConfiguration,
 } as const
+
+/**
+ * Read the optional ENVIRONMENT var without widening the shared Env type.
+ */
+function getEnvironmentName(env: Env): string | undefined {
+  const value = env.ENVIRONMENT
+  return typeof value === 'string' ? value : undefined
+}
 
 /**
  * Build CSP header value from configuration
@@ -100,7 +115,9 @@ export function buildCSPHeader(
       : [scriptNonces]
     : []
 
-  for (const [directive, values] of Object.entries(config)) {
+  for (const [directive, values] of Object.entries(config) as Array<
+    [string, string[] | boolean | undefined]
+  >) {
     if (typeof values === 'boolean') {
       if (values) {
         directives.push(directive)
@@ -135,11 +152,11 @@ export function buildCSPHeader(
  * @returns CSP configuration
  */
 export function getCSPConfig(env: Env): CSPConfiguration {
-  // Use strict policy in production, development policy otherwise
-  const isDevelopment =
-    env.DEBUG === true ||
-    (env as { ENVIRONMENT?: string }).ENVIRONMENT === 'development'
-  return isDevelopment ? CSP_CONFIG.development : CSP_CONFIG.strict
+  // DEBUG never influences the CSP. Only an exact ENVIRONMENT=development
+  // selects the local policy, which is equally strict about inline content.
+  return getEnvironmentName(env) === 'development'
+    ? CSP_CONFIG.development
+    : CSP_CONFIG.strict
 }
 
 /**
@@ -198,32 +215,3 @@ export function addCSPHeaders(
   })
 }
 
-/**
- * CSP Violation Report
- */
-interface CSPViolationReport {
-  'violated-directive': string
-  'blocked-uri': string
-  'source-file': string
-  'line-number': number
-}
-
-/**
- * Report CSP violations (for future implementation)
- *
- * @param violation - CSP violation report
- * @param env - Environment bindings
- */
-export function reportCSPViolation(violation: CSPViolationReport): void {
-  // Log the violation for monitoring
-  console.warn('CSP Violation:', {
-    directive: violation['violated-directive'],
-    blockedURI: violation['blocked-uri'],
-    sourceFile: violation['source-file'],
-    lineNumber: violation['line-number'],
-    timestamp: new Date().toISOString(),
-  })
-
-  // In production, you might want to send this to a monitoring service
-  // such as Cloudflare Analytics or another logging service
-}

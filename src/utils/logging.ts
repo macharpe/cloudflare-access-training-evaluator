@@ -8,6 +8,7 @@
 import type { Env } from '../types'
 import { sanitizeForLogging } from './validation.js'
 import { getCacheStats } from './cache.js'
+import { isDebugEnabled } from './env.js'
 
 /**
  * Log levels
@@ -36,10 +37,6 @@ interface MetricsData {
     successes: number
     failures: number
   }
-  database: {
-    queries: number
-    errors: number
-  }
   cache: {
     hits: number
     misses: number
@@ -65,10 +62,6 @@ const metrics: MetricsData = {
     attempts: 0,
     successes: 0,
     failures: 0,
-  },
-  database: {
-    queries: 0,
-    errors: 0,
   },
   cache: {
     hits: 0,
@@ -112,7 +105,7 @@ export function structuredLog(
     console.error(JSON.stringify(logEntry))
   } else if (level === LOG_LEVELS.WARN) {
     console.warn(JSON.stringify(logEntry))
-  } else if (level === LOG_LEVELS.DEBUG && env?.DEBUG) {
+  } else if (level === LOG_LEVELS.DEBUG && isDebugEnabled(env)) {
     console.log(JSON.stringify(logEntry))
   } else if (level === LOG_LEVELS.INFO) {
     console.log(JSON.stringify(logEntry))
@@ -220,49 +213,6 @@ export function logAuth(
 }
 
 /**
- * Log database operation
- *
- * @param operation - Database operation type
- * @param success - Operation success
- * @param duration - Operation duration in ms
- * @param details - Additional details
- * @param env - Environment bindings
- */
-export function logDatabase(
-  operation: string,
-  success: boolean,
-  duration: number,
-  details: Record<string, unknown> = {},
-  env?: Partial<Env>,
-): void {
-  metrics.database.queries++
-
-  if (!success) {
-    metrics.database.errors++
-  }
-
-  structuredLog(
-    success ? LOG_LEVELS.INFO : LOG_LEVELS.ERROR,
-    `Database ${operation} ${success ? 'completed' : 'failed'}`,
-    {
-      operation: sanitizeForLogging(operation),
-      success,
-      duration,
-      ...details,
-      dbStats: {
-        totalQueries: metrics.database.queries,
-        errors: metrics.database.errors,
-        errorRate:
-          ((metrics.database.errors / metrics.database.queries) * 100).toFixed(
-            2,
-          ) + '%',
-      },
-    },
-    env,
-  )
-}
-
-/**
  * Log cache operation
  *
  * @param hit - Cache hit or miss
@@ -341,31 +291,11 @@ export function logOkta(
 }
 
 /**
- * Get current metrics snapshot
- *
- * @returns Current metrics with timestamp
- */
-export function getMetrics(): MetricsData & {
-  timestamp: string
-  cache: ReturnType<typeof getCacheStats> & { hits: number; misses: number }
-} {
-  return {
-    ...metrics,
-    timestamp: new Date().toISOString(),
-    cache: {
-      ...metrics.cache,
-      ...getCacheStats(),
-    },
-  }
-}
-
-/**
  * Reset all metrics (useful for testing)
  */
 export function resetMetrics(): void {
   metrics.requests = { total: 0, successful: 0, failed: 0, byEndpoint: {} }
   metrics.auth = { attempts: 0, successes: 0, failures: 0 }
-  metrics.database = { queries: 0, errors: 0 }
   metrics.cache = { hits: 0, misses: 0 }
   metrics.okta = { apiCalls: 0, usersSynced: 0, errors: 0 }
 }

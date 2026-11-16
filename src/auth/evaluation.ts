@@ -5,11 +5,15 @@
  */
 
 import type { Env, AccessClaims } from '../types'
-import { getUserTrainingStatus } from '../database/training.js'
-import { extractUsername, sanitizeForLogging } from '../utils/validation.js'
+import { getUserTrainingStatusByEmail } from '../database/training.js'
+import { isValidEmail, sanitizeForLogging } from '../utils/validation.js'
 
 /**
  * External evaluation business logic for training certification
+ *
+ * Identity is the FULL email (case-insensitive), never just the local part:
+ * alice@a.com and alice@b.com are different people. Any missing, invalid,
+ * unknown or ambiguous identity is denied. Only `completed` grants access.
  *
  * @param claims - JWT claims from Access token
  * @param env - Environment bindings
@@ -20,22 +24,17 @@ export async function externalEvaluation(
   env: Env,
 ): Promise<boolean> {
   try {
-    // Validate claims structure
-    if (!claims || !claims.identity || !claims.identity.email) {
-      console.log('Invalid claims structure: missing email identity')
+    const email: unknown = claims?.identity?.email
+    if (!isValidEmail(email)) {
+      console.log('Invalid claims structure: missing or invalid email identity')
       return false
     }
 
-    // Extract and validate username from email
-    const email = claims.identity.email
-    const username = extractUsername(email)
-
-    // Get user training status from D1 database
-    const trainingStatus = await getUserTrainingStatus(env, username)
+    const trainingStatus = await getUserTrainingStatusByEmail(env, email)
 
     if (!trainingStatus) {
       console.log(
-        `User not found in training database: ${sanitizeForLogging(username)}`,
+        `User not found (or ambiguous) in training database: ${sanitizeForLogging(email)}`,
       )
       return false
     }
@@ -44,7 +43,7 @@ export async function externalEvaluation(
     const hasAccess = trainingStatus === 'completed'
 
     console.log(
-      `User ${sanitizeForLogging(username)} training status: ${sanitizeForLogging(trainingStatus)}, access granted: ${hasAccess}`,
+      `User ${sanitizeForLogging(email)} training status: ${sanitizeForLogging(trainingStatus)}, access granted: ${hasAccess}`,
     )
     return hasAccess
   } catch (error) {

@@ -7,25 +7,17 @@
 /**
  * Cloudflare Workers Environment Bindings
  *
- * Defines all environment variables, secrets, and bindings
- * available to the Worker at runtime.
+ * The bindings, vars and secret names come from the generated
+ * `worker-configuration.d.ts` (`npm run types`, which reads `wrangler.jsonc`
+ * and the secret names in `.dev.vars.example`). Do not hand-write bindings
+ * here: add them to the Wrangler config and regenerate. Only optional
+ * settings that are not part of the deployed config are declared below.
  */
-export interface Env {
-  // Environment Variables (from wrangler.jsonc vars)
-  TEAM_DOMAIN: string
-  ADMIN_DOMAIN: string
-  OKTA_DOMAIN: string
-  DEBUG: boolean
+export type Env = Cloudflare.Env & {
+  /** Optional page size for Okta list calls (default and maximum 200) */
   OKTA_FETCH_LIMIT?: number
-
-  // Secrets (configured via wrangler secret put)
-  RSA_PRIVATE_KEY: string
-  OKTA_API_TOKEN: string
-  ACCESS_APP_AUD: string
-
-  // Cloudflare Bindings
-  KEY_STORAGE: KVNamespace
-  DB: D1Database
+  /** Set to `development` for plain-http local dev only (see security/csp.ts) */
+  ENVIRONMENT?: string
 }
 
 /**
@@ -161,41 +153,6 @@ export interface User {
 }
 
 /**
- * D1 Query Result for User
- *
- * D1 database query result structure.
- */
-export interface D1Result<T> {
-  results: T[]
-  success: boolean
-  meta: {
-    duration: number
-    rows_read: number
-    rows_written: number
-  }
-}
-
-/**
- * External Evaluation Request
- *
- * Incoming request from Cloudflare Access for evaluation.
- */
-export interface ExternalEvaluationRequest {
-  token: string
-}
-
-/**
- * External Evaluation Response
- *
- * Signed JWT response returned to Cloudflare Access.
- */
-export interface ExternalEvaluationResponse {
-  success: boolean
-  challenge?: string
-  error?: string
-}
-
-/**
  * Okta User Profile
  *
  * User object returned from Okta API.
@@ -229,29 +186,6 @@ export interface OktaUser {
 }
 
 /**
- * Okta Group Object
- *
- * Group object returned from Okta API.
- */
-export interface OktaGroup {
-  id: string
-  created: string
-  lastUpdated: string
-  lastMembershipUpdated: string
-  objectClass: string[]
-  type: string
-  profile: {
-    name: string
-    description: string
-  }
-  _links: {
-    logo: Array<{ name: string; href: string; type: string }>
-    users: { href: string }
-    apps: { href: string }
-  }
-}
-
-/**
  * Cache Entry with TTL
  *
  * Generic cached value with expiration.
@@ -259,71 +193,4 @@ export interface OktaGroup {
 export interface CacheEntry<T> {
   value: T
   expiresAt: number
-}
-
-/**
- * Metrics Data Structure
- *
- * Tracks performance metrics for monitoring.
- */
-export interface Metrics {
-  requests: {
-    total: number
-    byEndpoint: Record<string, number>
-  }
-  authentication: {
-    success: number
-    failure: number
-  }
-  database: {
-    queries: number
-    errors: number
-  }
-  cache: {
-    hits: number
-    misses: number
-  }
-  okta: {
-    userFetches: number
-    groupFetches: number
-    syncOperations: number
-  }
-}
-
-/**
- * Structured Log Entry
- *
- * JSON log format for observability.
- */
-export interface LogEntry {
-  timestamp: string
-  level: 'info' | 'warn' | 'error' | 'debug'
-  message: string
-  context?: Record<string, unknown>
-  requestId?: string
-  duration?: number
-}
-
-/**
- * API Response Wrapper
- *
- * Standard response structure for admin API endpoints.
- */
-export interface ApiResponse<T = unknown> {
-  success: boolean
-  data?: T
-  error?: string
-  timestamp: string
-}
-
-/**
- * Okta Sync Statistics
- *
- * Results from Okta user synchronization.
- */
-export interface SyncStats {
-  usersAdded: number
-  usersUpdated: number
-  usersRemoved: number
-  errors: string[]
 }

@@ -1,0 +1,5 @@
+# Secret names for `wrangler types` (generates the Env type). Values are never read from here.
+# Real values: `wrangler secret put <NAME>` in production, `.dev.vars` (gitignored) locally.
+RSA_PRIVATE_KEY=
+OKTA_API_TOKEN=
+ACCESS_APP_AUD=

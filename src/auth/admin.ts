@@ -4,12 +4,16 @@
  * Provides response generators for unauthorized access attempts.
  */
 
+import type { Env } from '../types'
+import { createCSPHeaders, generateNonce } from '../security/csp.js'
+
 /**
  * Create an unauthorized JSON response
  *
+ * @param env - Environment bindings (for security headers)
  * @returns 401 Unauthorized response with JSON body
  */
-export function createUnauthorizedResponse(): Response {
+export function createUnauthorizedResponse(env: Env): Response {
   return new Response(
     JSON.stringify({
       error: 'Unauthorized',
@@ -18,7 +22,10 @@ export function createUnauthorizedResponse(): Response {
     }),
     {
       status: 401,
-      headers: { 'content-type': 'application/json' },
+      headers: {
+        'content-type': 'application/json',
+        ...createCSPHeaders(env),
+      },
     },
   )
 }
@@ -26,9 +33,16 @@ export function createUnauthorizedResponse(): Response {
 /**
  * Create an unauthorized HTML response for web interface
  *
+ * Every inline <script>/<style> carries a per-response nonce that is also
+ * listed in the strict Content-Security-Policy header.
+ *
+ * @param env - Environment bindings (for security headers)
  * @returns 401 Unauthorized HTML response with styled page
  */
-export function createUnauthorizedHtmlResponse(): Response {
+export function createUnauthorizedHtmlResponse(env: Env): Response {
+  const initNonce = generateNonce()
+  const scriptNonce = generateNonce()
+  const styleNonce = generateNonce()
   const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -36,8 +50,8 @@ export function createUnauthorizedHtmlResponse(): Response {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Access Denied — Training Admin</title>
-  <script>(function(){var s=localStorage.getItem('ui-mode');var d=window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.setAttribute('data-mode',s||(d?'dark':'light'));})();</script>
-  <style>
+  <script nonce="${initNonce}">(function(){var s=localStorage.getItem('ui-mode');var d=window.matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.setAttribute('data-mode',s||(d?'dark':'light'));})();</script>
+  <style nonce="${styleNonce}">
     :root {
       --kumo-canvas:   #f6f8fa; --kumo-base: #ffffff; --kumo-tint: #f6f8fa;
       --kumo-hairline: #e5e7eb; --kumo-border: #d1d5db;
@@ -185,7 +199,7 @@ export function createUnauthorizedHtmlResponse(): Response {
     </div>
   </div>
 
-  <script>
+  <script nonce="${scriptNonce}">
     document.getElementById('themeToggle').addEventListener('click', function() {
       var next = document.documentElement.getAttribute('data-mode') === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-mode', next);
@@ -198,6 +212,10 @@ export function createUnauthorizedHtmlResponse(): Response {
 
   return new Response(html, {
     status: 401,
-    headers: { 'content-type': 'text/html' },
+    headers: {
+      'content-type': 'text/html',
+      'cache-control': 'no-store',
+      ...createCSPHeaders(env, [initNonce, scriptNonce], styleNonce),
+    },
   })
 }
