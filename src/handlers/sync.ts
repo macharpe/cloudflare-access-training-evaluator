@@ -2,17 +2,26 @@
  * Okta synchronization handlers
  *
  * Handles Okta user sync, groups list, and users list endpoints.
+ *
+ * Error contract: responses never carry raw internal error text. Failures are
+ * logged (sanitized) and the client receives a generic message.
  */
 
-import type { Env, OktaGroup } from '../types/index.js'
-import type { ProcessedUser, SyncStats } from '../integrations/okta.js'
+import type { Env } from '../types/index.js'
+import type {
+  ProcessedGroup,
+  ProcessedUser,
+  SyncStats,
+} from '../integrations/okta.js'
 import {
+  fetchOktaDirectory,
   fetchOktaUsers,
   fetchOktaGroupUsers,
   fetchOktaGroups,
   syncUsersToDatabase,
 } from '../integrations/okta.js'
 import { createCSPHeaders } from '../security/csp.js'
+import { isValidGroupId, sanitizeForLogging } from '../utils/validation.js'
 
 /**
  * Sync response structure
@@ -22,7 +31,6 @@ interface SyncResponse {
   message: string
   results?: SyncStats
   oktaUsers?: number
-  error?: string
 }
 
 /**
@@ -30,7 +38,7 @@ interface SyncResponse {
  */
 interface GroupsResponse {
   success: boolean
-  groups?: OktaGroup[]
+  groups?: ProcessedGroup[]
   count?: number
   message?: string
 }
@@ -58,6 +66,20 @@ function createSecureJSONHeaders(env: Env): Record<string, string> {
   }
 }
 
+function jsonResponse(env: Env, body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: createSecureJSONHeaders(env),
+  })
+}
+
+function logError(label: string, error: unknown): void {
+  console.error(
+    label,
+    sanitizeForLogging(error instanceof Error ? error.message : String(error)),
+  )
+}
+
 /**
  * Handle Okta user sync request
  *
@@ -77,22 +99,31 @@ export async function handleOktaSync(
         message:
           'Okta integration not configured. Please set OKTA_DOMAIN and OKTA_API_TOKEN environment variables.',
       }
-      return new Response(JSON.stringify(response), {
-        status: 400,
-        headers: createSecureJSONHeaders(env),
-      })
+      return jsonResponse(env, response, 400)
     }
 
     const url = new URL(request.url)
     const groupId = url.searchParams.get('groupId')
 
+    if (groupId !== null && !isValidGroupId(groupId)) {
+      const response: SyncResponse = {
+        success: false,
+        message: 'Invalid groupId',
+      }
+      return jsonResponse(env, response, 400)
+    }
+
     let oktaUsers: ProcessedUser[]
+    let protectedEmails: string[] = []
     if (groupId) {
       console.log('Syncing users from Okta group:', groupId)
       oktaUsers = await fetchOktaGroupUsers(env, groupId)
     } else {
       console.log('Syncing all users from Okta')
-      oktaUsers = await fetchOktaUsers(env)
+      // A write must never be based on a cached (up to 10 minutes old) list.
+      const directory = await fetchOktaDirectory(env, { fresh: true })
+      oktaUsers = directory.users
+      protectedEmails = directory.invalidLogins
     }
 
     if (oktaUsers.length === 0) {
@@ -101,37 +132,40 @@ export async function handleOktaSync(
         message: 'No users found in Okta',
         results: { added: 0, updated: 0, removed: 0, skipped: 0, errors: [] },
       }
-      return new Response(JSON.stringify(response), {
-        headers: createSecureJSONHeaders(env),
-      })
+      return jsonResponse(env, response)
     }
 
-    // Sync users to database
-    const syncResults = await syncUsersToDatabase(env, oktaUsers)
+    // Sync users to database. A group is a partial view of the directory, so
+    // group syncs are add/update-only; only a full sync reconciles removals.
+    const syncResults = await syncUsersToDatabase(env, oktaUsers, {
+      scope: groupId ? 'group' : 'full',
+      protectedEmails,
+    })
+
+    if (syncResults.errors.length > 0) {
+      const response: SyncResponse = {
+        success: false,
+        message: `Sync finished with ${syncResults.errors.length} error(s). Added: ${syncResults.added}, Updated: ${syncResults.updated}, Removed: ${syncResults.removed}, Skipped: ${syncResults.skipped}.`,
+        results: syncResults,
+        oktaUsers: oktaUsers.length,
+      }
+      return jsonResponse(env, response, 207)
+    }
 
     const response: SyncResponse = {
       success: true,
-      message: `Sync completed. Added: ${syncResults.added}, Updated: ${syncResults.updated}, Removed: ${syncResults.removed}, Errors: ${syncResults.errors.length}`,
+      message: `Sync completed. Added: ${syncResults.added}, Updated: ${syncResults.updated}, Removed: ${syncResults.removed}, Skipped: ${syncResults.skipped}.`,
       results: syncResults,
       oktaUsers: oktaUsers.length,
     }
-
-    return new Response(JSON.stringify(response), {
-      headers: { 'content-type': 'application/json' },
-    })
+    return jsonResponse(env, response)
   } catch (error) {
-    console.error('Okta sync error:', error)
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    logError('Okta sync error:', error)
     const response: SyncResponse = {
       success: false,
-      message: errorMessage,
-      error: errorMessage,
+      message: 'Okta sync failed. Check the Worker logs.',
     }
-
-    return new Response(JSON.stringify(response), {
-      status: 500,
-      headers: { 'content-type': 'application/json' },
-    })
+    return jsonResponse(env, response, 500)
   }
 }
 
@@ -148,35 +182,24 @@ export async function handleOktaGroups(env: Env): Promise<Response> {
         success: false,
         message: 'Okta integration not configured',
       }
-      return new Response(JSON.stringify(response), {
-        status: 400,
-        headers: createSecureJSONHeaders(env),
-      })
+      return jsonResponse(env, response, 400)
     }
 
     const groups = await fetchOktaGroups(env)
 
     const response: GroupsResponse = {
       success: true,
-      groups: groups,
+      groups,
       count: groups.length,
     }
-
-    return new Response(JSON.stringify(response), {
-      headers: { 'content-type': 'application/json' },
-    })
+    return jsonResponse(env, response)
   } catch (error) {
-    console.error('Okta groups error:', error)
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    logError('Okta groups error:', error)
     const response: GroupsResponse = {
       success: false,
-      message: errorMessage,
+      message: 'Failed to fetch Okta groups. Check the Worker logs.',
     }
-
-    return new Response(JSON.stringify(response), {
-      status: 500,
-      headers: { 'content-type': 'application/json' },
-    })
+    return jsonResponse(env, response, 500)
   }
 }
 
@@ -197,14 +220,19 @@ export async function handleOktaUsers(
         success: false,
         message: 'Okta integration not configured',
       }
-      return new Response(JSON.stringify(response), {
-        status: 400,
-        headers: createSecureJSONHeaders(env),
-      })
+      return jsonResponse(env, response, 400)
     }
 
     const url = new URL(request.url)
     const groupId = url.searchParams.get('groupId')
+
+    if (groupId !== null && !isValidGroupId(groupId)) {
+      const response: UsersResponse = {
+        success: false,
+        message: 'Invalid groupId',
+      }
+      return jsonResponse(env, response, 400)
+    }
 
     let oktaUsers: ProcessedUser[]
     if (groupId) {
@@ -218,21 +246,13 @@ export async function handleOktaUsers(
       users: oktaUsers,
       count: oktaUsers.length,
     }
-
-    return new Response(JSON.stringify(response), {
-      headers: { 'content-type': 'application/json' },
-    })
+    return jsonResponse(env, response)
   } catch (error) {
-    console.error('Okta users error:', error)
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    logError('Okta users error:', error)
     const response: UsersResponse = {
       success: false,
-      message: errorMessage,
+      message: 'Failed to fetch Okta users. Check the Worker logs.',
     }
-
-    return new Response(JSON.stringify(response), {
-      status: 500,
-      headers: { 'content-type': 'application/json' },
-    })
+    return jsonResponse(env, response, 500)
   }
 }

@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["@cloudflare/workers-types", "node"],
+    "skipLibCheck": true,
+    // Tests build partial fakes of Workers bindings; keep the strict flags that
+    // catch real mistakes but allow test-only indexing patterns.
+    "noUncheckedIndexedAccess": true,
+    "noPropertyAccessFromIndexSignature": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["./**/*.ts", "../src/**/*.ts", "../worker-configuration.d.ts", "../vitest.config.mts"],
+  "exclude": ["../node_modules", "../dist", "./ui"]
+}

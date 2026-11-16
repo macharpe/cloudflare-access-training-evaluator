@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Locally generated signing keys (never commit)
+.signing-keys/
+
 # Wrangler files
 .wrangler/
 .dev.vars*
@@ -15,6 +18,11 @@ wrangler.local.*
 
 # Build outputs
 dist/
+.ui-build/
+src/ui-assets.generated.ts
+coverage/
+playwright-report/
+test-results/
 
 # Temporary files
 tmp/

@@ -63,7 +63,7 @@ export function getCached<T>(key: string): T | null {
  */
 export function setCache<T>(key: string, value: T, ttlSeconds: number): void {
   const expiresAt = Date.now() + ttlSeconds * 1000
-  memoryCache.set(key, { value, expiresAt } as CacheEntry<unknown>)
+  memoryCache.set(key, { value, expiresAt })
 }
 
 /**
@@ -150,7 +150,7 @@ export async function cachedFetch<T>(
     return {
       ok: true,
       status: 200,
-      json: async () => cached,
+      json: () => Promise.resolve(cached),
       headers: new Headers({ 'x-cache': 'HIT' }),
     }
   }
@@ -171,7 +171,7 @@ export async function cachedFetch<T>(
       ok: true,
       status: response.status,
       statusText: response.statusText,
-      json: async () => data,
+      json: () => Promise.resolve(data),
       headers: new Headers([
         ...Array.from(response.headers.entries()),
         ['x-cache', 'MISS'],

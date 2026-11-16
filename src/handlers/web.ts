@@ -4,21 +4,21 @@
  * Handles admin dashboard, training status updates, and system overview pages.
  */
 
-import type { Env, TrainingStatus, User } from '../types/index.js'
+import type { Env, User } from '../types/index.js'
 import { updateUserTrainingStatusByEmail } from '../database/training.js'
+import { isTrainingStatus } from '../types/guards.js'
 import {
   generateNonce,
   addCSPHeaders,
   createCSPHeaders,
 } from '../security/csp.js'
+import { ADMIN_CSS, ADMIN_JS } from '../ui-assets.generated.js'
+import { isValidEmail, sanitizeForLogging } from '../utils/validation.js'
 
 /**
- * Update training request body
+ * Maximum accepted size of a POST /api/update-training body (10 KB)
  */
-interface UpdateTrainingBody {
-  email: string
-  status: string
-}
+export const MAX_UPDATE_BODY_BYTES = 10 * 1024
 
 /**
  * Update training response
@@ -29,18 +29,47 @@ interface UpdateTrainingResponse {
 }
 
 /**
+ * Result of the dashboard's initial user query. A failed query is reported
+ * explicitly so the UI never presents an empty list as a successful load.
+ */
+interface UsersLoadResult {
+  users: User[]
+  error: string | null
+}
+
+/**
  * Get all users from the database
  */
-async function getAllUsers(env: Env): Promise<User[]> {
+async function getAllUsers(env: Env): Promise<UsersLoadResult> {
   try {
     const result = await env.DB.prepare(
       'SELECT id, username, first_name, primary_email, training_status, created_at, updated_at FROM users ORDER BY username',
     ).all<User>()
-    return result.results || []
+    if ((result as { success?: boolean }).success === false) {
+      throw new Error('User query failed')
+    }
+    return { users: result.results || [], error: null }
   } catch (error) {
     console.error('Database error:', error)
-    return []
+    return {
+      users: [],
+      error: 'The user list could not be read from the database.',
+    }
   }
+}
+
+/**
+ * Serialize a value for embedding in an inline <script type="application/json">
+ * element. Escapes characters that could close the element, start an HTML
+ * comment, or be treated as line terminators by older script parsers.
+ */
+export function serializeForScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
 }
 
 // ---------------------------------------------------------------------------
@@ -204,609 +233,38 @@ const THEME_TOGGLE_JS = `
 // ---------------------------------------------------------------------------
 
 export async function handleWebInterface(env: Env): Promise<Response> {
-  const users = await getAllUsers(env)
+  const { users, error } = await getAllUsers(env)
   const styleNonce = generateNonce()
   const scriptNonce = generateNonce()
   const initNonce = generateNonce()
 
-  const html = `
-<!DOCTYPE html>
+  // Only the fields the dashboard renders are sent to the browser.
+  const bootstrap = serializeForScript({
+    users: users.map((u) => ({
+      id: u.id,
+      username: u.username,
+      first_name: u.first_name,
+      primary_email: u.primary_email,
+      training_status: u.training_status,
+      updated_at: u.updated_at,
+    })),
+    loadError: error,
+  })
+
+  const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Training Completion Status</title>
   ${THEME_INIT_SCRIPT(initNonce)}
-  <style nonce="${styleNonce}">
-    ${KUMO_TOKENS}
-
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: var(--kumo-font);
-      background: var(--kumo-canvas);
-      min-height: 100vh;
-      color: var(--kumo-text-default);
-      line-height: 1.5;
-      -webkit-font-smoothing: antialiased;
-      transition: background 0.2s, color 0.2s;
-    }
-
-    /* ── Page header ── */
-    .page-header {
-      background: var(--kumo-base);
-      border-bottom: 1px solid var(--kumo-hairline);
-      padding: 0 24px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      height: 56px;
-    }
-    .page-header-logo { display: flex; align-items: center; gap: 8px; }
-    .cf-dot { width: 20px; height: 20px; background: var(--kumo-orange); border-radius: 50%; flex-shrink: 0; }
-    .page-header-title { font-size: 15px; font-weight: 600; color: var(--kumo-text-default); }
-    .page-header-sep { color: var(--kumo-hairline); font-size: 18px; font-weight: 300; margin: 0 4px; }
-    .page-header-sub { font-size: 14px; color: var(--kumo-text-subtle); }
-
-    ${THEME_TOGGLE_CSS}
-
-    /* ── Page body ── */
-    .page-body { max-width: 1200px; margin: 0 auto; padding: 28px 24px 48px; }
-
-    .section-heading { font-size: 22px; font-weight: 700; color: var(--kumo-text-default); margin-bottom: 4px; }
-    .section-sub { font-size: 14px; color: var(--kumo-text-subtle); margin-bottom: 24px; }
-
-    /* ── Toasts ── */
-    .toast {
-      display: none; align-items: center; gap: 10px;
-      padding: 12px 16px; border-radius: var(--kumo-radius);
-      margin-bottom: 16px; font-size: 14px; font-weight: 500;
-      border-left: 3px solid transparent;
-    }
-    .toast.visible { display: flex; }
-    .toast-success { background: var(--kumo-success-tint); color: var(--kumo-success); border-left-color: var(--kumo-success); }
-    .toast-error   { background: var(--kumo-danger-tint);  color: var(--kumo-danger);  border-left-color: var(--kumo-danger); }
-    .toast-icon { font-size: 16px; flex-shrink: 0; }
-
-    /* ── Toolbar ── */
-    .toolbar {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      padding: 14px 16px; background: var(--kumo-tint);
-      border: 1px solid var(--kumo-hairline); border-radius: var(--kumo-radius-lg);
-      margin-bottom: 20px;
-    }
-    .toolbar-label { font-size: 14px; color: var(--kumo-text-subtle); }
-
-    /* ── Buttons ── */
-    .btn {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 8px 16px; border-radius: var(--kumo-radius);
-      font-size: 14px; font-weight: 500; font-family: var(--kumo-font);
-      cursor: pointer; border: 1px solid transparent;
-      transition: background 0.15s, border-color 0.15s, color 0.15s;
-      white-space: nowrap;
-    }
-    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
-    .btn-primary { background: var(--kumo-orange); color: #fff; border-color: var(--kumo-orange); }
-    .btn-primary:hover:not(:disabled) { background: #d96e18; border-color: #d96e18; }
-    .btn-ghost { background: transparent; color: var(--kumo-text-subtle); border-color: transparent; }
-    .btn-ghost:hover:not(:disabled) { background: var(--kumo-tint); color: var(--kumo-text-default); }
-
-    /* ── Stats ── */
-    .stats-grid {
-      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 14px; margin-bottom: 20px;
-    }
-    .stat-card {
-      background: var(--kumo-base); border: 1px solid var(--kumo-hairline);
-      border-radius: var(--kumo-radius-lg); padding: 18px 20px;
-      display: flex; flex-direction: column; gap: 4px;
-      box-shadow: var(--kumo-shadow-sm);
-    }
-    .stat-value { font-size: 28px; font-weight: 800; line-height: 1.1; }
-    .stat-label { font-size: 13px; color: var(--kumo-text-subtle); font-weight: 500; }
-    .stat-card.completed  .stat-value { color: var(--kumo-success); }
-    .stat-card.started    .stat-value { color: var(--kumo-warning); }
-    .stat-card.not-started .stat-value { color: var(--kumo-danger); }
-    .stat-card.total       .stat-value { color: var(--kumo-text-default); }
-
-    /* ── Filters ── */
-    .filters-row {
-      display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;
-      padding: 14px 16px; background: var(--kumo-tint);
-      border: 1px solid var(--kumo-hairline); border-radius: var(--kumo-radius-lg);
-      margin-bottom: 14px;
-    }
-    .filter-group { display: flex; flex-direction: column; gap: 5px; }
-    .filter-label { font-size: 12px; font-weight: 500; color: var(--kumo-text-subtle); text-transform: uppercase; letter-spacing: 0.04em; }
-    .filter-input, .filter-select {
-      padding: 7px 10px; border: 1px solid var(--kumo-border);
-      border-radius: var(--kumo-radius); font-size: 14px; font-family: var(--kumo-font);
-      background: var(--kumo-base); color: var(--kumo-text-default);
-      min-width: 160px; transition: border-color 0.15s, box-shadow 0.15s;
-    }
-    .filter-input:focus, .filter-select:focus {
-      outline: none; border-color: var(--kumo-orange);
-      box-shadow: 0 0 0 3px var(--kumo-orange-tint);
-    }
-    .filter-input::placeholder { color: var(--kumo-text-inactive); }
-    .filter-count {
-      display: none; font-size: 13px; color: var(--kumo-text-subtle);
-      background: var(--kumo-info-tint); border: 1px solid var(--kumo-info-border);
-      border-radius: var(--kumo-radius); padding: 7px 12px; align-self: flex-end;
-    }
-
-    /* ── Bulk bar ── */
-    .bulk-bar {
-      display: none; align-items: center; justify-content: space-between; gap: 12px;
-      padding: 12px 16px; background: var(--kumo-contrast); color: var(--kumo-canvas);
-      border-radius: var(--kumo-radius-lg); margin-bottom: 14px;
-    }
-    .bulk-bar.active { display: flex; }
-    .bulk-bar-left  { display: flex; align-items: center; gap: 12px; }
-    .bulk-bar-right { display: flex; align-items: center; gap: 10px; }
-    .bulk-count { font-size: 14px; font-weight: 600; }
-    .bulk-select {
-      padding: 7px 10px; border-radius: var(--kumo-radius); font-size: 14px;
-      font-family: var(--kumo-font); background: rgba(255,255,255,.1);
-      color: inherit; border: 1px solid rgba(255,255,255,.2); cursor: pointer;
-    }
-    .bulk-select:focus { outline: none; border-color: var(--kumo-orange); }
-    .btn-bulk {
-      padding: 7px 14px; border-radius: var(--kumo-radius); font-size: 14px;
-      font-weight: 500; font-family: var(--kumo-font); cursor: pointer;
-      border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.1);
-      color: inherit; transition: background 0.15s;
-    }
-    .btn-bulk:hover:not(:disabled) { background: rgba(255,255,255,.2); }
-    .btn-bulk:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-bulk-cancel { background: transparent; }
-    .btn-bulk-cancel:hover:not(:disabled) { background: rgba(255,255,255,.08); }
-
-    /* ── Table ── */
-    .table-wrap {
-      border: 1px solid var(--kumo-hairline); border-radius: var(--kumo-radius-lg);
-      overflow: hidden; box-shadow: var(--kumo-shadow-sm);
-    }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    thead tr { background: var(--kumo-tint); border-bottom: 1px solid var(--kumo-hairline); }
-    th {
-      padding: 10px 14px; font-size: 11px; font-weight: 600;
-      color: var(--kumo-text-subtle); text-transform: uppercase;
-      letter-spacing: 0.06em; text-align: left; white-space: nowrap;
-    }
-    th.sortable { cursor: pointer; user-select: none; padding-right: 28px; position: relative; transition: color 0.15s; }
-    th.sortable:hover { color: var(--kumo-text-default); }
-    th.sortable::after { content: '↕'; position: absolute; right: 10px; opacity: 0.35; font-size: 10px; }
-    th.sortable.asc::after  { content: '↑'; opacity: 0.9; color: var(--kumo-orange); }
-    th.sortable.desc::after { content: '↓'; opacity: 0.9; color: var(--kumo-orange); }
-    .checkbox-cell { width: 40px; padding: 10px 14px; text-align: center; }
-    td {
-      padding: 12px 14px; border-bottom: 1px solid var(--kumo-hairline);
-      vertical-align: middle; background: var(--kumo-base);
-      transition: background 0.1s;
-    }
-    tbody tr:last-child td { border-bottom: none; }
-    tbody tr:hover td { background: var(--kumo-tint); }
-    tbody tr.selected td { background: var(--kumo-info-tint); }
-    .user-name  { font-weight: 600; color: var(--kumo-text-default); }
-    .user-email { font-size: 13px; color: var(--kumo-text-subtle); font-family: var(--kumo-font-mono); }
-    .timestamp  { font-size: 12px; color: var(--kumo-text-inactive); }
-    .user-checkbox, .select-all-checkbox { width: 16px; height: 16px; accent-color: var(--kumo-orange); cursor: pointer; }
-
-    /* ── Status select ── */
-    .status-select {
-      padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
-      font-family: var(--kumo-font); border: 1px solid; cursor: pointer;
-      appearance: none; background-repeat: no-repeat;
-      background-position: right 8px center; background-size: 10px; padding-right: 24px;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E");
-      transition: box-shadow 0.15s;
-    }
-    .status-select:focus { outline: none; box-shadow: 0 0 0 3px var(--kumo-orange-tint); }
-    .status-select.status-completed  { background-color: var(--kumo-success-tint); color: var(--kumo-success); border-color: var(--kumo-success-border); }
-    .status-select.status-started    { background-color: var(--kumo-warning-tint); color: var(--kumo-warning); border-color: var(--kumo-warning-border); }
-    .status-select.status-not-started { background-color: var(--kumo-danger-tint);  color: var(--kumo-danger);  border-color: var(--kumo-danger-border); }
-
-    /* ── Badge ── */
-    .badge {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 3px 10px; border-radius: 20px; font-size: 11px;
-      font-weight: 600; letter-spacing: 0.03em; border: 1px solid; white-space: nowrap;
-    }
-    .badge-success { background: var(--kumo-success-tint); color: var(--kumo-success); border-color: var(--kumo-success-border); }
-    .badge-danger  { background: var(--kumo-danger-tint);  color: var(--kumo-danger);  border-color: var(--kumo-danger-border); }
-    .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
-
-    /* ── Spinner ── */
-    .spinner {
-      display: inline-block; width: 14px; height: 14px;
-      border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff;
-      border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── Responsive ── */
-    @media (max-width: 768px) {
-      .page-body { padding: 20px 16px 40px; }
-      .stats-grid { grid-template-columns: repeat(2, 1fr); }
-      .toolbar { flex-direction: column; align-items: stretch; }
-      .bulk-bar { flex-direction: column; }
-      .bulk-bar-right { flex-wrap: wrap; }
-      .table-wrap { overflow-x: auto; }
-    }
-    @media (max-width: 480px) {
-      .stats-grid { grid-template-columns: 1fr; }
-      .filters-row { flex-direction: column; align-items: stretch; }
-      .filter-input, .filter-select { min-width: 0; }
-    }
-  </style>
+  <style nonce="${styleNonce}">${ADMIN_CSS}</style>
 </head>
 <body>
-
-  <header class="page-header">
-    <div class="page-header-logo">
-      <div class="cf-dot"></div>
-      <span class="page-header-title">Cloudflare Access</span>
-    </div>
-    <span class="page-header-sep">|</span>
-    <span class="page-header-sub">Training Completion Status</span>
-    ${THEME_TOGGLE_BTN}
-  </header>
-
-  <div class="page-body">
-    <h1 class="section-heading">Training Dashboard</h1>
-    <p class="section-sub">Manage and track training certification progress across the team.</p>
-
-    <div class="toast toast-success" id="successToast">
-      <span class="toast-icon">✓</span>
-      <span id="successText">Training status updated successfully.</span>
-    </div>
-    <div class="toast toast-error" id="errorToast">
-      <span class="toast-icon">✕</span>
-      <span id="errorText">Failed to update training status.</span>
-    </div>
-
-    <div class="toolbar">
-      <span class="toolbar-label" id="syncStatus">Ready to sync users from Okta</span>
-      <button class="btn btn-primary" id="syncButton">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-          <path d="M14 8A6 6 0 1 1 8 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          <path d="M8 0l2.5 2.5L8 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        Sync from Okta
-      </button>
-    </div>
-
-    <div class="stats-grid">
-      <div class="stat-card completed">
-        <span class="stat-value" id="completedCount">${users.filter((u) => u.training_status === 'completed').length}</span>
-        <span class="stat-label">Completed</span>
-      </div>
-      <div class="stat-card started">
-        <span class="stat-value" id="startedCount">${users.filter((u) => u.training_status === 'started').length}</span>
-        <span class="stat-label">In Progress</span>
-      </div>
-      <div class="stat-card not-started">
-        <span class="stat-value" id="notStartedCount">${users.filter((u) => u.training_status === 'not started').length}</span>
-        <span class="stat-label">Not Started</span>
-      </div>
-      <div class="stat-card total">
-        <span class="stat-value" id="totalCount">${users.length}</span>
-        <span class="stat-label">Total Users</span>
-      </div>
-    </div>
-
-    <div class="filters-row">
-      <div class="filter-group">
-        <label for="statusFilter" class="filter-label">Status</label>
-        <select id="statusFilter" class="filter-select">
-          <option value="">All</option>
-          <option value="completed">Completed</option>
-          <option value="started">In Progress</option>
-          <option value="not started">Not Started</option>
-        </select>
-      </div>
-      <div class="filter-group">
-        <label for="searchFilter" class="filter-label">Search</label>
-        <input type="text" id="searchFilter" class="filter-input" placeholder="Name or email…">
-      </div>
-      <div class="filter-group" style="justify-content:flex-end;">
-        <label class="filter-label" style="visibility:hidden">Reset</label>
-        <button type="button" class="btn btn-ghost" id="clearFiltersBtn">Clear filters</button>
-      </div>
-      <div class="filter-count" id="filterCount"></div>
-    </div>
-
-    <div class="bulk-bar" id="bulkBar">
-      <div class="bulk-bar-left">
-        <span class="bulk-count" id="bulkCount">0 selected</span>
-      </div>
-      <div class="bulk-bar-right">
-        <select id="bulkStatusSelect" class="bulk-select">
-          <option value="">Change status to…</option>
-          <option value="completed">Completed</option>
-          <option value="started">In Progress</option>
-          <option value="not started">Not Started</option>
-        </select>
-        <button type="button" class="btn-bulk" id="applyBulkAction">Apply</button>
-        <button type="button" class="btn-bulk btn-bulk-cancel" id="cancelBulkAction">Cancel</button>
-      </div>
-    </div>
-
-    <div class="table-wrap">
-      <table id="usersTable">
-        <thead>
-          <tr>
-            <th class="checkbox-cell"><input type="checkbox" class="select-all-checkbox" id="selectAllCheckbox"></th>
-            <th class="sortable" data-column="first_name">Name</th>
-            <th class="sortable" data-column="primary_email">Email</th>
-            <th class="sortable" data-column="training_status">Training Status</th>
-            <th>Access</th>
-            <th class="sortable" data-column="updated_at">Last Updated</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${users
-            .map(
-              (user) => `
-          <tr data-user-id="${user.id}" data-user-email="${user.primary_email}">
-            <td class="checkbox-cell"><input type="checkbox" class="user-checkbox" value="${user.primary_email}"></td>
-            <td class="user-name">${user.first_name || '-'}</td>
-            <td class="user-email">${user.primary_email || '-'}</td>
-            <td>
-              <select class="status-select status-${user.training_status.replace(' ', '-')}"
-                      data-email="${user.primary_email}"
-                      data-original-value="${user.training_status}">
-                <option value="not started" ${user.training_status === 'not started' ? 'selected' : ''}>Not Started</option>
-                <option value="started"     ${user.training_status === 'started'     ? 'selected' : ''}>In Progress</option>
-                <option value="completed"   ${user.training_status === 'completed'   ? 'selected' : ''}>Completed</option>
-              </select>
-            </td>
-            <td>
-              <span class="badge ${user.training_status === 'completed' ? 'badge-success' : 'badge-danger'}">
-                <span class="badge-dot"></span>
-                ${user.training_status === 'completed' ? 'Granted' : 'Denied'}
-              </span>
-            </td>
-            <td class="timestamp">${new Date(user.updated_at).toLocaleString()}</td>
-          </tr>`,
-            )
-            .join('')}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <script nonce="${scriptNonce}">
-    ${THEME_TOGGLE_JS}
-
-    async function updateTrainingStatus(email, newStatus, selectElement) {
-      const originalValue = selectElement.getAttribute('data-original-value');
-      if (newStatus === originalValue) return;
-      selectElement.disabled = true;
-      try {
-        const res = await fetch('/api/update-training', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          credentials: 'same-origin', body: JSON.stringify({ email, status: newStatus }),
-        });
-        const result = await res.json();
-        if (result.success) {
-          selectElement.className = 'status-select status-' + newStatus.replace(' ', '-');
-          selectElement.setAttribute('data-original-value', newStatus);
-          const row = selectElement.closest('tr');
-          row.querySelector('.timestamp').textContent = new Date().toLocaleString();
-          const badge = row.querySelector('.badge');
-          if (newStatus === 'completed') { badge.className = 'badge badge-success'; badge.innerHTML = '<span class="badge-dot"></span>Granted'; }
-          else { badge.className = 'badge badge-danger'; badge.innerHTML = '<span class="badge-dot"></span>Denied'; }
-          updateStats();
-          showToast('success', 'Training status updated.');
-        } else {
-          selectElement.value = originalValue;
-          showToast('error', result.message || 'Failed to update training status.');
-        }
-      } catch (err) {
-        console.error(err); selectElement.value = originalValue;
-        showToast('error', 'Network error. Please try again.');
-      } finally { selectElement.disabled = false; }
-    }
-
-    function updateStats() {
-      let completed = 0, started = 0, notStarted = 0;
-      document.querySelectorAll('.status-select').forEach(s => {
-        if (s.value === 'completed') completed++;
-        else if (s.value === 'started') started++;
-        else notStarted++;
-      });
-      document.getElementById('completedCount').textContent = completed;
-      document.getElementById('startedCount').textContent = started;
-      document.getElementById('notStartedCount').textContent = notStarted;
-    }
-
-    async function syncOktaUsers() {
-      const btn = document.getElementById('syncButton');
-      const label = document.getElementById('syncStatus');
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span>Syncing\u2026';
-      label.textContent = 'Syncing users from Okta\u2026';
-      try {
-        const res = await fetch('/api/okta/sync', { method: 'POST', credentials: 'same-origin' });
-        const result = await res.json();
-        if (result.success) {
-          label.textContent = 'Sync completed: +' + result.results.added + ' added, ' + result.results.updated + ' updated, ' + result.results.skipped + ' skipped';
-          showToast('success', result.message);
-          setTimeout(() => window.location.reload(), 2000);
-        } else {
-          label.textContent = 'Sync failed';
-          showToast('error', result.message || 'Failed to sync users from Okta.');
-        }
-      } catch (err) {
-        console.error(err); label.textContent = 'Sync failed';
-        showToast('error', 'Network error during sync.');
-      } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14 8A6 6 0 1 1 8 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M8 0l2.5 2.5L8 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Sync from Okta';
-        setTimeout(() => { label.textContent = 'Ready to sync users from Okta'; }, 5000);
-      }
-    }
-
-    function showToast(type, message) {
-      const s = document.getElementById('successToast');
-      const e = document.getElementById('errorToast');
-      s.classList.remove('visible'); e.classList.remove('visible');
-      if (type === 'success') {
-        document.getElementById('successText').textContent = message;
-        s.classList.add('visible'); setTimeout(() => s.classList.remove('visible'), 3000);
-      } else {
-        document.getElementById('errorText').textContent = message;
-        e.classList.add('visible'); setTimeout(() => e.classList.remove('visible'), 5000);
-      }
-    }
-
-    let currentSort = { column: null, direction: 'asc' };
-    function initSorting() {
-      document.querySelectorAll('th.sortable').forEach(th => {
-        th.addEventListener('click', () => sortTable(th.dataset.column, th));
-      });
-    }
-    function sortTable(column, headerEl) {
-      const tbody = document.querySelector('#usersTable tbody');
-      const rows = Array.from(tbody.querySelectorAll('tr'));
-      let dir = (currentSort.column === column && currentSort.direction === 'asc') ? 'desc' : 'asc';
-      document.querySelectorAll('th.sortable').forEach(th => th.classList.remove('asc', 'desc'));
-      headerEl.classList.add(dir);
-      rows.sort((a, b) => {
-        let av = getCellValue(a, column), bv = getCellValue(b, column);
-        if (column === 'updated_at') { av = new Date(av); bv = new Date(bv); }
-        else if (column === 'training_status') { const o = { completed:3, started:2, 'not started':1 }; av = o[av]||0; bv = o[bv]||0; }
-        else { av = av.toLowerCase(); bv = bv.toLowerCase(); }
-        return dir === 'asc' ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
-      });
-      rows.forEach(r => tbody.appendChild(r));
-      currentSort = { column, direction: dir };
-    }
-    function getCellValue(row, column) {
-      switch (column) {
-        case 'first_name':      return row.querySelector('.user-name').textContent.trim();
-        case 'primary_email':   return row.querySelector('.user-email').textContent.trim();
-        case 'training_status': return row.querySelector('.status-select').value;
-        case 'updated_at':      return row.querySelector('.timestamp').textContent.trim();
-        default: return '';
-      }
-    }
-
-    function initFiltering() {
-      document.getElementById('statusFilter').addEventListener('change', applyFilters);
-      document.getElementById('searchFilter').addEventListener('input', debounce(applyFilters, 250));
-    }
-    function applyFilters() {
-      const status = document.getElementById('statusFilter').value;
-      const search = document.getElementById('searchFilter').value.toLowerCase();
-      const rows = document.querySelectorAll('#usersTable tbody tr');
-      let visible = 0;
-      rows.forEach(row => {
-        const s = row.querySelector('.status-select').value;
-        const n = row.querySelector('.user-name').textContent.toLowerCase();
-        const e = row.querySelector('.user-email').textContent.toLowerCase();
-        const match = (!status || s === status) && (!search || n.includes(search) || e.includes(search));
-        row.style.display = match ? '' : 'none';
-        if (match) visible++;
-      });
-      const counter = document.getElementById('filterCount');
-      if (visible === rows.length) { counter.style.display = 'none'; }
-      else { counter.style.display = 'block'; counter.textContent = 'Showing ' + visible + ' of ' + rows.length; }
-    }
-    function clearFilters() {
-      document.getElementById('statusFilter').value = '';
-      document.getElementById('searchFilter').value = '';
-      applyFilters();
-    }
-    function debounce(fn, wait) {
-      let t;
-      return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), wait); };
-    }
-
-    let selectedUsers = [];
-    function updateSelection() {
-      selectedUsers = Array.from(document.querySelectorAll('.user-checkbox')).filter(cb => cb.checked).map(cb => cb.value);
-      updateBulkUI();
-    }
-    function toggleAll(masterCb) {
-      const visible = Array.from(document.querySelectorAll('.user-checkbox')).filter(cb => cb.closest('tr').style.display !== 'none');
-      visible.forEach(cb => { cb.checked = masterCb.checked; cb.closest('tr').classList.toggle('selected', masterCb.checked); });
-      updateSelection();
-    }
-    function updateBulkUI() {
-      const bar = document.getElementById('bulkBar');
-      const count = document.getElementById('bulkCount');
-      const master = document.getElementById('selectAllCheckbox');
-      if (selectedUsers.length > 0) {
-        bar.classList.add('active');
-        count.textContent = selectedUsers.length + ' user' + (selectedUsers.length !== 1 ? 's' : '') + ' selected';
-        document.querySelectorAll('.user-checkbox').forEach(cb => { cb.closest('tr').classList.toggle('selected', cb.checked); });
-      } else {
-        bar.classList.remove('active'); master.checked = false; master.indeterminate = false;
-        document.querySelectorAll('tr.selected').forEach(r => r.classList.remove('selected'));
-      }
-      const visible = Array.from(document.querySelectorAll('.user-checkbox')).filter(cb => cb.closest('tr').style.display !== 'none');
-      const checked = visible.filter(cb => cb.checked);
-      if (checked.length === 0) { master.indeterminate = false; master.checked = false; }
-      else if (checked.length === visible.length) { master.indeterminate = false; master.checked = true; }
-      else { master.indeterminate = true; }
-    }
-    function clearSelection() {
-      document.querySelectorAll('.user-checkbox').forEach(cb => { cb.checked = false; });
-      document.getElementById('bulkStatusSelect').value = '';
-      updateSelection();
-    }
-    async function applyBulk() {
-      const newStatus = document.getElementById('bulkStatusSelect').value;
-      if (!newStatus || selectedUsers.length === 0) { showToast('error', 'Please select a status and at least one user.'); return; }
-      const applyBtn = document.getElementById('applyBulkAction');
-      applyBtn.disabled = true; applyBtn.textContent = 'Updating\u2026';
-      try {
-        const results = await Promise.all(selectedUsers.map(async email => {
-          const res = await fetch('/api/update-training', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin', body: JSON.stringify({ email, status: newStatus }),
-          });
-          return { email, data: await res.json() };
-        }));
-        const ok = results.filter(r => r.data.success);
-        const fail = results.filter(r => !r.data.success);
-        ok.forEach(({ email }) => {
-          const row = document.querySelector('tr[data-user-email="' + email + '"]');
-          if (!row) return;
-          const sel = row.querySelector('.status-select');
-          sel.value = newStatus; sel.className = 'status-select status-' + newStatus.replace(' ', '-');
-          sel.setAttribute('data-original-value', newStatus);
-          const badge = row.querySelector('.badge');
-          if (newStatus === 'completed') { badge.className = 'badge badge-success'; badge.innerHTML = '<span class="badge-dot"></span>Granted'; }
-          else { badge.className = 'badge badge-danger'; badge.innerHTML = '<span class="badge-dot"></span>Denied'; }
-        });
-        updateStats();
-        if (ok.length)   showToast('success', 'Updated ' + ok.length + ' user' + (ok.length !== 1 ? 's' : '') + ' to "' + newStatus + '".');
-        if (fail.length) showToast('error', 'Failed to update ' + fail.length + ' user' + (fail.length !== 1 ? 's' : '') + '.');
-        clearSelection();
-      } catch (err) {
-        console.error(err); showToast('error', 'Bulk update failed. Please try again.');
-      } finally { applyBtn.disabled = false; applyBtn.textContent = 'Apply'; }
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      initSorting(); initFiltering();
-      document.getElementById('syncButton').addEventListener('click', syncOktaUsers);
-      document.getElementById('clearFiltersBtn').addEventListener('click', clearFilters);
-      document.getElementById('applyBulkAction').addEventListener('click', applyBulk);
-      document.getElementById('cancelBulkAction').addEventListener('click', clearSelection);
-      document.getElementById('selectAllCheckbox').addEventListener('change', function() { toggleAll(this); });
-      document.getElementById('usersTable').addEventListener('change', e => {
-        if (e.target.classList.contains('user-checkbox')) updateSelection();
-        if (e.target.classList.contains('status-select')) updateTrainingStatus(e.target.dataset.email, e.target.value, e.target);
-      });
-    });
-  </script>
-
+  <div id="root"></div>
+  <noscript>This dashboard requires JavaScript.</noscript>
+  <script type="application/json" id="training-data" nonce="${scriptNonce}">${bootstrap}</script>
+  <script type="module" nonce="${scriptNonce}">${ADMIN_JS}</script>
 </body>
 </html>
 `
@@ -817,9 +275,6 @@ export async function handleWebInterface(env: Env): Promise<Response> {
       'cache-control': 'private, no-cache, no-store, must-revalidate',
       pragma: 'no-cache',
       expires: '0',
-      'x-content-version': `${Date.now()}-${scriptNonce.substring(0, 8)}`,
-      'x-script-nonce': scriptNonce,
-      'x-style-nonce': styleNonce,
     },
   })
 
@@ -834,49 +289,84 @@ export async function handleUpdateTraining(
   env: Env,
   request: Request,
 ): Promise<Response> {
-  try {
-    const body = (await request.json()) as UpdateTrainingBody
-    const { email, status } = body
-
-    const secureHeaders: Record<string, string> = {
-      'content-type': 'application/json',
-      ...createCSPHeaders(env),
-    }
-
-    if (!email || !status) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Email and status are required' } as UpdateTrainingResponse),
-        { status: 400, headers: secureHeaders },
-      )
-    }
-
-    const validStatuses: TrainingStatus[] = ['not started', 'started', 'completed']
-    if (!validStatuses.includes(status as TrainingStatus)) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Invalid status value' } as UpdateTrainingResponse),
-        { status: 400, headers: secureHeaders },
-      )
-    }
-
-    const updated = await updateUserTrainingStatusByEmail(env, email, status as TrainingStatus)
-
-    if (updated) {
-      return new Response(
-        JSON.stringify({ success: true, message: 'Training status updated successfully' } as UpdateTrainingResponse),
-        { headers: secureHeaders },
-      )
-    } else {
-      return new Response(
-        JSON.stringify({ success: false, message: 'User not found or update failed' } as UpdateTrainingResponse),
-        { status: 404, headers: secureHeaders },
-      )
-    }
-  } catch (error) {
-    console.error('Update training error:', error)
-    return new Response(
-      JSON.stringify({ success: false, message: 'Internal server error' } as UpdateTrainingResponse),
-      { status: 500, headers: { 'content-type': 'application/json', ...createCSPHeaders(env) } },
+  const secureHeaders: Record<string, string> = {
+    'content-type': 'application/json',
+    ...createCSPHeaders(env),
+  }
+  const reply = (status: number, success: boolean, message: string) =>
+    new Response(
+      JSON.stringify({ success, message } satisfies UpdateTrainingResponse),
+      { status, headers: secureHeaders },
     )
+
+  // --- Input validation: every client error is a 4xx, never a 500 ---------
+  let raw: string
+  try {
+    raw = await request.text()
+  } catch {
+    return reply(400, false, 'Request body could not be read')
+  }
+
+  // Length in UTF-16 code units is a lower bound for the byte size, so also
+  // check the encoded size to enforce the byte limit precisely.
+  if (
+    raw.length > MAX_UPDATE_BODY_BYTES ||
+    new TextEncoder().encode(raw).length > MAX_UPDATE_BODY_BYTES
+  ) {
+    return reply(413, false, 'Request body too large')
+  }
+
+  let body: unknown
+  try {
+    body = JSON.parse(raw)
+  } catch {
+    return reply(400, false, 'Malformed request body')
+  }
+
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return reply(400, false, 'Request body must be an object')
+  }
+
+  const { email, status } = body as Record<string, unknown>
+
+  if (
+    email === undefined ||
+    email === null ||
+    email === '' ||
+    status === undefined ||
+    status === null ||
+    status === ''
+  ) {
+    return reply(400, false, 'Email and status are required')
+  }
+
+  if (typeof email !== 'string' || !isValidEmail(email)) {
+    return reply(400, false, 'Invalid email address')
+  }
+
+  if (!isTrainingStatus(status)) {
+    return reply(400, false, 'Invalid status value')
+  }
+
+  // --- Update: only genuine internal failures are a 500 -------------------
+  try {
+    const updated = await updateUserTrainingStatusByEmail(
+      env,
+      email,
+      status,
+    )
+    if (updated) {
+      return reply(200, true, 'Training status updated successfully')
+    }
+    return reply(404, false, 'User not found or update failed')
+  } catch (error) {
+    console.error(
+      'Update training error:',
+      sanitizeForLogging(
+        error instanceof Error ? error.message : String(error),
+      ),
+    )
+    return reply(500, false, 'Internal server error')
   }
 }
 
@@ -884,7 +374,7 @@ export async function handleUpdateTraining(
 // System Overview (/)
 // ---------------------------------------------------------------------------
 
-export async function handleSystemOverview(env: Env): Promise<Response> {
+export function handleSystemOverview(env: Env): Response {
   const styleNonce = generateNonce()
   const scriptNonce = generateNonce()
   const initNonce = generateNonce()

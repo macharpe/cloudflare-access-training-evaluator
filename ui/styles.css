@@ -1,0 +1,33 @@
+/* Kumo styles must be registered before Tailwind so its @theme tokens exist. */
+@import '@cloudflare/kumo/styles/tailwind';
+@import 'tailwindcss' source(none);
+/* Dev fallback. build-ui.mjs replaces this with the tree-shaken first-pass
+   bundle, so production only generates CSS for the shipped components. */
+@source "../node_modules/@cloudflare/kumo/dist/**/*.{js,jsx,ts,tsx}";
+@source "./**/*.{ts,tsx}";
+
+html {
+  color-scheme: light dark;
+}
+html[data-mode='light'] {
+  color-scheme: light;
+}
+html[data-mode='dark'] {
+  color-scheme: dark;
+}
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -58,26 +58,21 @@ export function extractUsername(email: string): string {
 }
 
 /**
- * Validate training status
- *
- * @param status - Training status to validate
- * @returns True if valid status
- */
-export function isValidTrainingStatus(status: unknown): boolean {
-  const validStatuses = ['not started', 'started', 'completed']
-  return typeof status === 'string' && validStatuses.includes(status)
-}
-
-/**
  * Sanitize string input for logging (prevent log injection)
  *
  * @param input - Input string to sanitize
  * @returns Sanitized string safe for logging
  */
 export function sanitizeForLogging(input: unknown): string {
-  if (!input || typeof input !== 'string') {
-    return String(input || '')
+  if (typeof input !== 'string') {
+    // Never stringify objects: they would log as "[object Object]" or leak fields.
+    if (input === null || input === undefined || input === false) return ''
+    if (typeof input === 'number' || typeof input === 'boolean') {
+      return String(input)
+    }
+    return ''
   }
+  if (input === '') return ''
 
   // Remove control characters and limit length for logging
   return input
