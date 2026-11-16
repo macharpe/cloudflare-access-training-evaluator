@@ -412,7 +412,9 @@ async function runInChunks(
       }
     } catch (error) {
       console.error(
-        `Sync ${phase} batch ${i + 1}/${total} failed:`,
+        'Sync batch failed:',
+        sanitizeForLogging(phase),
+        `${i + 1}/${total}`,
         sanitizeForLogging(
           error instanceof Error ? error.message : String(error),
         ),

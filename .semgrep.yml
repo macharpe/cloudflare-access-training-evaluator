@@ -64,10 +64,22 @@ rules:
       confidence: HIGH
 
   - id: unsafe-json-parse
-    pattern: |
-      JSON.parse($INPUT)
+    patterns:
+      - pattern: JSON.parse($INPUT)
+      - pattern-not-inside: |
+          try {
+            ...
+          } catch {
+            ...
+          }
+      - pattern-not-inside: |
+          try {
+            ...
+          } catch ($E) {
+            ...
+          }
     message: |
-      Unsafe JSON.parse usage. Consider validating input or using try-catch blocks.
+      JSON.parse outside a try/catch. A malformed input throws; wrap it and validate the shape.
     languages: [javascript, typescript]
     severity: INFO
     metadata:

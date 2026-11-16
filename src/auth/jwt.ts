@@ -12,6 +12,28 @@ import { structuredLog, LOG_LEVELS } from '../utils/logging.js'
 import { sanitizeForLogging } from '../utils/validation.js'
 
 /**
+ * Decode one base64url JWT segment into a JSON object
+ *
+ * @param segment - Base64url segment (header or payload)
+ * @returns The decoded JSON object
+ * @throws Error if the segment is not base64url-encoded JSON object
+ */
+function decodeSegment<T extends object>(segment: string): T {
+  let value: unknown
+  try {
+    value = JSON.parse(
+      new TextDecoder('utf-8').decode(base64url.parse(segment)),
+    )
+  } catch {
+    throw new Error('token segment is not valid base64url JSON')
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('token segment is not a JSON object')
+  }
+  return value as T
+}
+
+/**
  * Parse a JWT into its respective pieces
  *
  * Does not do any validation other than form checking.
@@ -26,13 +48,8 @@ export function parseJWT(token: string): DecodedJWT {
     throw new Error('token must have 3 parts')
   }
 
-  const enc = new TextDecoder('utf-8')
-  const header = JSON.parse(
-    enc.decode(base64url.parse(tokenParts[0]!)),
-  ) as DecodedJWT['header']
-  const payload = JSON.parse(
-    enc.decode(base64url.parse(tokenParts[1]!)),
-  ) as AccessClaims
+  const header = decodeSegment<DecodedJWT['header']>(tokenParts[0]!)
+  const payload = decodeSegment<AccessClaims>(tokenParts[1]!)
 
   return {
     header,
