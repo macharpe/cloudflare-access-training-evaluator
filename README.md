@@ -325,43 +325,26 @@ wrangler secret put ACCESS_APP_AUD   # Your Access application audience ID
 
 #### **Step 6A: Initial RSA Key Generation**
 
-For new deployments, you'll need to generate RSA keys. The worker will generate keys automatically on first `/keys` endpoint call, but you need to manually configure the private key as a secret.
+Generate the key pair **locally**, then provision the private secret and its matching public keyset. Do not retrieve private keys from Worker logs. The local generator makes no network calls, refuses to overwrite an existing output directory, and writes private files with owner-only permissions.
 
 ```bash
-# 1. Deploy worker (without RSA_PRIVATE_KEY secret initially)
-wrangler deploy
+# 1. Create local files in the gitignored .signing-keys/ directory
+node scripts/generate-signing-keys.mjs
 
-# 2. Generate keys by calling the /keys endpoint (this will show the private key in logs)
-# You can use curl or visit in browser (protected by Access if configured)
-curl https://training-status.your-domain.com/keys
+# 2. Upload the private key without displaying it or putting it in a command argument
+npx wrangler secret put RSA_PRIVATE_KEY < .signing-keys/private-key.json
 
-# 3. Check the worker logs to get the private key JWK
-wrangler tail --format pretty
-
-# 4. Copy the private key JSON object from logs and set it as secret
-wrangler secret put RSA_PRIVATE_KEY
-# Paste the private key JWK JSON when prompted
-
-# 5. Redeploy to use the secret
-wrangler deploy
+# 3. Upload ONLY the matching public keyset to the configured KV namespace
+npx wrangler kv key put external_auth_keys --namespace-id YOUR_KV_NAMESPACE_ID --path .signing-keys/public-keyset.json --remote
 ```
 
-#### **Step 6B: Migrating Existing Keys (if upgrading)**
+These provisioning commands change live credentials; run them only when setting up or deliberately rotating keys. Keep the pair consistent and verify that `/keys` publishes the new public key before testing external evaluation. If the Worker already has a working pair, **do not regenerate or replace it** as part of a code upgrade. Keep the private file in a secure secret store, then remove the local copy when no longer needed.
 
-If you have an existing worker with keys stored in KV, extract the private key:
+The `/keys` endpoint still creates a pair if KV is empty, but it no longer prints the private key. That generated public key alone is not sufficient for response signing: use the local provisioning flow above to install a matching pair.
 
-```bash
-# 1. Get current private key from KV
-wrangler kv:key get "external_auth_keys" --namespace-id YOUR_KV_NAMESPACE_ID
+#### **Step 6B: Existing Deployments and Key Rotation**
 
-# 2. Copy the "private" key object from the JSON response
-# 3. Set it as a Workers Secret
-wrangler secret put RSA_PRIVATE_KEY
-# Paste only the "private" key JSON object when prompted
-
-# 4. Deploy the updated worker
-wrangler deploy
-```
+Existing `RSA_PRIVATE_KEY` secrets and public keysets continue to work without migration. If a previous version logged the private key, treat it as exposed and schedule a **coordinated key rotation** using Step 6A. Removing the log statement does not remove old log records or revoke an exposed key. Do not print private keys from KV, secrets, or historical logs to migrate them.
 
 ### **Step 7: Deploy Worker**
 
@@ -546,7 +529,7 @@ wrangler d1 execute training-completion-status-db --remote \
 - [ ] Set up regular rotation of RSA keys, Okta API tokens and secrets
 - [ ] Disable debug logging (`DEBUG: false` in wrangler.jsonc)
 - [ ] Review and configure geographic access restrictions if needed
-- [ ] Clear any temporary private key data from logs after initial setup
+- [ ] Never log private key data; rotate keys previously exposed in logs
 - [ ] Verify CSP headers are present on all responses
 - [ ] Test security headers using security scanning tools
 - [ ] Review Content Security Policy configuration for your environment
