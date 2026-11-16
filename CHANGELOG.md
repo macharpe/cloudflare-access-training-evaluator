@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Admin dashboard rebuilt with real `@cloudflare/kumo` components** (React, bundled with Vite and embedded in the Worker): stat cards with a completion meter, status tabs, search, sortable table, pagination, row selection, and a confirmation dialog before any grant or revoke. Light and dark themes. Only server-confirmed changes are shown; a failed edit reverts, and a partly failed bulk update keeps the failed rows selected. A sync that finishes with errors is shown as a partial failure and the data is reloaded.
+- **Server-side origin (CSRF) check** (`src/auth/origin.ts`) on every state-changing admin request.
+- **Test suite** (Vitest, 500+ tests) covering the access rule, JWT verification, CSP, routing, the origin check, Okta pagination and sync, and the dashboard's API client. Includes a local-only signing-key generator (`scripts/generate-signing-keys.mjs`).
+- **Tooling:** ESLint 10 flat config (type-aware, covers `src/`, `ui/` and `tests/`), type-checking of the tests, a generated `Env` type (`npm run types`), and `AGENTS.md`.
+- **CI:** a monthly keepalive workflow so GitHub does not disable the required Semgrep check after 60 days of inactivity.
+
+### Changed
+
+- **Admin authentication now verifies the Access JWT.** The RS256 signature is checked against the team keys, `exp` is required, `iss` is pinned to `https://TEAM_DOMAIN`, and `aud` must match `ACCESS_APP_AUD`. The unsigned `CF-Access-Jwt-Payload` header is no longer trusted. Service-token JWTs carry no `email` claim and are therefore not accepted by the admin gate.
+- **Evaluation matches on the full email, not the local part.** `alice@a.com` and `alice@b.com` no longer share a status. The Access identity email must equal the stored Okta login (case-insensitive); an email that matches several rows is denied.
+- **Okta sync reconciles by identity.** A username that exists with a different email is reported as an identity conflict and is never updated, inherited or deleted. Writes run in transactional batches of at most 100; deletion runs only for a full-directory sync that finished with no errors, never for an empty directory, and never for users whose Okta login could not be parsed. Group syncs add and update only. Syncs read fresh data instead of the 10-minute cache.
+- **Sync responses:** errors in the results return HTTP 207 with `success: false`; failures return a generic message and the details only in the Worker logs. `fetchOktaGroups` is paginated and returns only fields Okta provides.
+- **Routing is exact-match.** Unknown paths return 404 and wrong methods return 405 with `Allow`; nothing falls through to the evaluation handler except `POST /`. `GET /keys` and `POST /` are unchanged.
+- **The CSP is always strict** (no `unsafe-inline`), `DEBUG` never changes it, and `DEBUG` is parsed strictly (the string `"false"` is not debug). Security headers, with nonces where needed, are now on every response including the 401, 403, 404 and 405 pages.
+- `POST /api/update-training` returns 400 for malformed input and 413 for bodies over 10 KB instead of 500.
+- Okta requests use `redirect: 'manual'` and reject any redirect, so the API token is never re-sent to another URL.
+- Tooling and config: `compatibility_date` moved to 2026-11-01, observability sampling and source maps enabled, Semgrep now scans TypeScript, and dependencies updated (`npm audit`: 0 vulnerabilities).
+
+### Security
+
+- The RSA signing private key is no longer written to the logs. **A version before this one logged it, so treat that key as exposed and rotate it** (see the README, Step 6).
+- Removed the response headers that exposed the page nonces.
+- Okta pagination now compares the full origin, including the port.
+
+### Removed
+
+- Unused code: the API-key auth stub, unused database and type-guard helpers, `reportCSPViolation`, unused metrics and type definitions, and the duplicate friendly page in the evaluation handler.
+
 ### Fixed
 
 - **Okta sync no longer deletes users beyond the first page.** `fetchOktaUsers` read a single page (`limit=200`) and ignored Okta's `Link: rel="next"` header, while `syncUsersToDatabase` deletes every database user missing from the list it receives. On tenants with more than 200 users, everyone past the first page was treated as removed from Okta and deleted on the next sync.

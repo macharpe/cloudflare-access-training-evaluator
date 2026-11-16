@@ -1,0 +1,36 @@
+name: Workflow Keepalive
+
+# GitHub automatically disables scheduled workflows (state `disabled_inactivity`)
+# after 60 days without repository activity. That silently stopped the required
+# "Security Scan with Semgrep" check. Re-enabling a workflow through the API
+# resets the inactivity timer, so this monthly job re-enables the workflows
+# that must stay alive (itself included). It uses only the preinstalled `gh` CLI
+# and the built-in token: no third-party action.
+#
+# Limit: if this workflow is itself disabled (e.g. after being added to a repo
+# that then stays idle for 60 days before its first run), re-enable it manually:
+#   gh workflow enable keepalive.yml
+
+on:
+  schedule:
+    - cron: '17 3 1 * *' # 03:17 UTC on the 1st of every month
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  keepalive:
+    name: Re-enable scheduled workflows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Re-enable workflows (resets the 60-day inactivity timer)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for workflow in semgrep.yml keepalive.yml; do
+            echo "Re-enabling ${workflow}"
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/${workflow}/enable"
+          done

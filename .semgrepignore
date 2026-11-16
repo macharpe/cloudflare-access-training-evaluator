@@ -13,3 +13,10 @@ images/
 
 # Ignore database migration files (they may contain example data)
 src/database/migrations/
+# Generated build output (embedded UI bundle is minified third-party code: pure noise)
+src/ui-assets.generated.ts
+.ui-build/
+coverage/
+
+# Test fixtures contain intentionally fake tokens/keys/JWTs
+tests/

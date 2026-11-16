@@ -1,5 +1,11 @@
 name: Semgrep Security Scan
 
+# NOTE: scheduled workflows are auto-disabled (`disabled_inactivity`) after 60 days
+# without repository activity, which silently blocks the required check
+# "Security Scan with Semgrep". .github/workflows/keepalive.yml re-enables this
+# workflow monthly to prevent that. Do not rename the job below: its name is a
+# required status check on main.
+
 on:
   # Scan on push to main branch
   push:
@@ -43,6 +49,7 @@ jobs:
             --config=p/secrets \
             --config=p/owasp-top-ten \
             --config=p/javascript \
+            --config=.semgrep.yml \
             --json \
             --output=semgrep-results.json \
             --verbose || true
@@ -63,11 +70,12 @@ jobs:
             --config=p/secrets \
             --config=p/owasp-top-ten \
             --config=p/javascript \
+            --config=.semgrep.yml \
             --sarif \
             --output=semgrep.sarif || true
 
       - name: Upload SARIF file to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: semgrep.sarif

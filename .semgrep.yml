@@ -1,21 +1,38 @@
 rules:
+  # Secrets in logs: only flag console calls / stringified objects whose
+  # argument name suggests a credential. A bare `console.log($X)` would flag
+  # every single-argument console call and bury real findings in noise.
   - id: cloudflare-worker-security-check
-    pattern-either:
-      - pattern: |
-          console.log($SECRET)
-      - pattern: |
-          console.error($SECRET)
-      - pattern: |
-          JSON.stringify({..., password: $PWD, ...})
+    patterns:
+      - pattern-either:
+          - pattern: console.log($SECRET)
+          - pattern: console.error($SECRET)
+      - metavariable-regex:
+          metavariable: $SECRET
+          # Plain string literals are messages, not secret values: skipped. Template
+          # literals match only when a ${...} expression contains the keyword.
+          regex: (?is)^(?:(?![\'\"`]).*(secret|token|password|private|key|jwt|credential)|`.*\$\{[^}]*(secret|token|password|private|key|jwt|credential))
     message: |
       Potential secret exposure in logs. Avoid logging sensitive data in Cloudflare Workers.
-    languages: [javascript]
+    languages: [javascript, typescript]
     severity: ERROR
     metadata:
       category: security
       subcategory: [audit]
-      confidence: HIGH
-      
+      confidence: MEDIUM
+
+  - id: cloudflare-worker-password-stringify
+    pattern: |
+      JSON.stringify({..., password: $PWD, ...})
+    message: |
+      Potential secret exposure: a password property is being serialized. Avoid serializing or logging sensitive data in Cloudflare Workers.
+    languages: [javascript, typescript]
+    severity: ERROR
+    metadata:
+      category: security
+      subcategory: [audit]
+      confidence: MEDIUM
+
   - id: jwt-hardcoded-secret
     pattern-either:
       - pattern: |
@@ -24,7 +41,7 @@ rules:
           jwt.verify($TOKEN, "...")
     message: |
       Hardcoded JWT secret detected. Use environment variables for JWT secrets.
-    languages: [javascript]
+    languages: [javascript, typescript]
     severity: ERROR
     metadata:
       category: security
@@ -39,7 +56,7 @@ rules:
           $DB.exec("... " + $INPUT + " ...")
     message: |
       Potential SQL injection vulnerability. Use parameterized queries with .bind().
-    languages: [javascript]
+    languages: [javascript, typescript]
     severity: ERROR
     metadata:
       category: security
@@ -51,9 +68,9 @@ rules:
       JSON.parse($INPUT)
     message: |
       Unsafe JSON.parse usage. Consider validating input or using try-catch blocks.
-    languages: [javascript]
-    severity: WARNING
+    languages: [javascript, typescript]
+    severity: INFO
     metadata:
       category: security
       subcategory: [audit]
-      confidence: MEDIUM
+      confidence: LOW

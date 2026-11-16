@@ -4,8 +4,15 @@
   // Security: Disable public endpoints
   "workers_dev": false, // Disables *.workers.dev URLs
   "preview_urls": false, // Disables version preview URLs
-  "compatibility_date": "2024-08-06",
+  // Verified with local workerd smoke tests (routes, JWT/keys, D1/KV, auth failures).
+  // Bump deliberately: newer dates change runtime behavior.
+  "compatibility_date": "2026-11-01",
   "main": "src/index.ts",
+  // Build real Kumo assets before every Wrangler dev/deploy, including Workers Builds.
+  "build": {
+    "command": "npm run build:ui",
+    "watch_dir": ["ui", "scripts/build-ui.mjs"],
+  },
 
   // KV Storage for RSA key pairs (automatically generated)
   // IMPORTANT: Replace with your own KV namespace ID when cloning this repository
@@ -46,9 +53,19 @@
   ],
 
   // Observability - provides Worker analytics and logs
+  // head_sampling_rate 1 = log every invocation: traffic is low (admin dashboard + Access
+  // evaluations) and the structured logs are the audit trail for authorization decisions.
+  // Lower it if volume ever grows enough to matter for log retention/cost.
   "observability": {
     "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+    },
   },
+
+  // Upload source maps so production stack traces map back to the TypeScript sources.
+  "upload_source_maps": true,
 
   // Smart Placement for optimal performance and reduced latency
   "placement": {
