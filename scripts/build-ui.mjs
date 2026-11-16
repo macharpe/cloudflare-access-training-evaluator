@@ -1,0 +1,143 @@
+import { build } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { fileURLToPath } from 'node:url'
+import path from 'node:path'
+
+const root = fileURLToPath(new URL('../', import.meta.url))
+const outDir = path.join(root, '.ui-build')
+const stylesPath = path.join(root, 'ui/styles.css')
+const KUMO_SOURCE_GLOB =
+  '@source "../node_modules/@cloudflare/kumo/dist/**/*.{js,jsx,ts,tsx}";'
+// Phosphor icons ship every weight (thin/light/regular/bold/fill/duotone) per
+// icon. The dashboard only renders these; drop the rest from the bundle.
+const KEPT_WEIGHTS = new Set(['regular', 'bold', 'fill'])
+
+/** Drop unused weights from a Phosphor `dist/defs/<Icon>.es.js` module. */
+function pruneIconWeights(code) {
+  const entry = /^ {2}\[\n {4}"(\w+)",\n[\s\S]*?\n {2}\](,?)$/gm
+  let kept = 0
+  const pruned = code.replace(entry, (whole, weight) => {
+    if (KEPT_WEIGHTS.has(weight)) {
+      kept++
+      return whole
+    }
+    return ''
+  })
+  // Fail safe: if the module layout changed, leave it untouched.
+  if (kept !== KEPT_WEIGHTS.size) return code
+  return pruned.replace(/,(\s*)\]\);/, '$1]);')
+}
+
+function plugins(kumoSourceFile) {
+  return [
+    {
+      name: 'ui-bundle-trim',
+      enforce: 'pre',
+      transform(code, id) {
+        const file = id.split('?')[0].split(path.sep).join('/')
+        if (file.includes('/@cloudflare/kumo/dist/')) {
+          // Kumo itself still imports the Phosphor barrel. Rewrite those
+          // imports too; otherwise Vite visits thousands of unused icons.
+          const granular = code.replace(
+            /import \{([^}]+)\} from "@phosphor-icons\/react";/g,
+            (_whole, names) =>
+              names
+                .split(',')
+                .map((name) => {
+                  const trimmed = name.trim()
+                  const icon = trimmed.replace(/Icon$/, '')
+                  const source =
+                    trimmed === 'IconContext'
+                      ? '@phosphor-icons/react/dist/lib/context'
+                      : `@phosphor-icons/react/dist/csr/${icon}`
+                  return `import { ${trimmed} } from ${JSON.stringify(source)};`
+                })
+                .join('\n'),
+          )
+          if (granular !== code) return { code: granular, map: null }
+        }
+        if (file.includes('/@phosphor-icons/react/dist/defs/')) {
+          const out = pruneIconWeights(code)
+          return out === code ? null : { code: out, map: null }
+        }
+        if (kumoSourceFile && file === stylesPath.split(path.sep).join('/')) {
+          if (!code.includes(KUMO_SOURCE_GLOB)) {
+            throw new Error(
+              'ui/styles.css no longer contains the expected Kumo @source line',
+            )
+          }
+          return {
+            code: code.replace(
+              KUMO_SOURCE_GLOB,
+              `@source ${JSON.stringify(kumoSourceFile)};`,
+            ),
+            map: null,
+          }
+        }
+        return null
+      },
+    },
+    react(),
+    tailwindcss(),
+  ]
+}
+
+function buildConfig(outputDir, kumoSourceFile) {
+  return {
+    configFile: false,
+    root,
+    logLevel: 'warn',
+    plugins: plugins(kumoSourceFile),
+    // process.env references must be replaced because the bundle runs in
+    // browsers. Application (non-library) mode is used so Vite fully minifies
+    // the output; ES library mode keeps whitespace.
+    define: { 'process.env.NODE_ENV': JSON.stringify('production') },
+    build: {
+      outDir: outputDir,
+      emptyOutDir: true,
+      minify: 'esbuild',
+      modulePreload: false,
+      cssCodeSplit: false,
+      reportCompressedSize: false,
+      chunkSizeWarningLimit: 4096,
+      rollupOptions: {
+        input: path.join(root, 'ui/main.tsx'),
+        preserveEntrySignatures: false,
+        output: {
+          format: 'es',
+          entryFileNames: 'admin.js',
+          assetFileNames: 'admin[extname]',
+          codeSplitting: false,
+        },
+      },
+    },
+  }
+}
+
+// Pass 1 bundles only the Kumo components the dashboard imports. Pass 2 lets
+// Tailwind scan that bundle (plus ui/) instead of the whole Kumo dist, so the
+// CSS only contains utilities for components that are actually shipped.
+const pass1Dir = await mkdtemp(path.join(tmpdir(), 'ui-build-pass1-'))
+try {
+  await build(buildConfig(pass1Dir))
+  await build(buildConfig(outDir, path.join(pass1Dir, 'admin.js')))
+} finally {
+  await rm(pass1Dir, { recursive: true, force: true })
+}
+const js = await readFile(path.join(outDir, 'admin.js'), 'utf8')
+const css = await readFile(path.join(outDir, 'admin.css'), 'utf8')
+// Assets are embedded in nonce-authorized tags, never evaluated dynamically.
+// Escape end tags even if a future dependency introduces one into a string.
+await mkdir(path.join(root, 'src'), { recursive: true })
+await writeFile(
+  path.join(root, 'src/ui-assets.generated.ts'),
+  '// Generated by npm run build:ui. Do not edit.\n' +
+    `export const ADMIN_JS = ${JSON.stringify(js.replace(/<\/script/gi, '<\\/script'))}\n` +
+    `export const ADMIN_CSS = ${JSON.stringify(css.replace(/<\/style/gi, '<\\/style'))}\n`,
+)
+console.log(
+  `Embedded admin assets: ${(js.length / 1024).toFixed(0)} KiB JS, ${(css.length / 1024).toFixed(0)} KiB CSS`,
+)
