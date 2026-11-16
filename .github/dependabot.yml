@@ -1,0 +1,22 @@
+# Keeps the SHA-pinned GitHub Actions current. Pinning by full commit SHA stops a
+# moved tag from changing what CI runs, but pins go stale without a bot.
+# npm is deliberately not enabled: this is a small demo Worker and `npm audit`
+# is checked manually (see AGENTS.md).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    # Wait before proposing a newly published release: a compromised or
+    # yanked release is usually caught within days. Pinning by SHA protects
+    # the version we run; this protects the version Dependabot proposes.
+    cooldown:
+      default-days: 7
+    # One PR per month for all action updates, to keep the noise low.
+    groups:
+      github-actions:
+        patterns: ['*']
+    commit-message:
+      prefix: 'ci'
+    labels: [dependencies]
